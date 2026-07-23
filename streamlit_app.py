@@ -1,0 +1,221 @@
+"""
+다우오피스 광고 리포트 — RAW 생성기 (Streamlit)
+
+GAS "RAW 생성기 v5" 로직을 웹앱으로 포팅.
+ · 구글·메타 : API 실시간 조회
+ · 네이버·사람인 : 엑셀 업로드 후 파싱
+ · GA 전환수/직원수 : GA4 Data API
+ · 매체 INDEX / GA INDEX / meta 정리 : 앱 안에서 편집·저장
+"""
+import io
+from datetime import date, timedelta
+
+import pandas as pd
+import streamlit as st
+
+from src.config import RAW_HEADERS, AD_SOURCES, GA_SOURCES
+from src import mapping_store as ms
+from src.sources.google_ads import get_google_rows, is_configured as google_ok
+from src.sources.meta_ads import get_meta_rows, is_configured as meta_ok
+from src.sources.upload import parse_upload
+from src.ga4.client import get_ga_records, is_configured as ga4_ok
+from src.pipeline import run_pipeline
+from src.validate import build_check_report
+
+st.set_page_config(page_title="다우오피스 광고 리포트", page_icon="📊", layout="wide")
+
+
+# ── secrets 안전 접근 ──────────────────────────────────────
+def get_secrets():
+    try:
+        return dict(st.secrets)
+    except Exception:
+        return {}
+
+
+SECRETS = get_secrets()
+
+
+# ── 소스 config 조회 헬퍼 ──────────────────────────────────
+def ad_source(label):
+    return next(s for s in AD_SOURCES if s["label"] == label)
+
+
+# ── xlsx 내보내기 ──────────────────────────────────────────
+def build_xlsx(raw_df, check):
+    buf = io.BytesIO()
+    with pd.ExcelWriter(buf, engine="openpyxl") as writer:
+        raw_df.to_excel(writer, sheet_name="RAW", index=False)
+        # 데이터 점검 시트: 섹션 제목 + 표를 순서대로 쌓기
+        ws_rows = []
+        for sec in check["sections"]:
+            ws_rows.append([sec["title"]])
+            df = sec["df"]
+            ws_rows.append(list(df.columns))
+            for _, r in df.iterrows():
+                ws_rows.append(list(r))
+            ws_rows.append([])
+        maxw = max((len(r) for r in ws_rows), default=1)
+        norm = [r + [""] * (maxw - len(r)) for r in ws_rows]
+        pd.DataFrame(norm).to_excel(writer, sheet_name="데이터 점검", index=False, header=False)
+    buf.seek(0)
+    return buf.getvalue()
+
+
+# ── RAW 생성 실행 ──────────────────────────────────────────
+def run_generation(since, until, naver_file, saramin_file):
+    logs = []
+    ad_data = []
+
+    # 네이버 (업로드)
+    nv_recs, logs = parse_upload(naver_file, ad_source("네이버")["col"], logs) if naver_file else ([], logs)
+    ad_data.append({"source": ad_source("네이버"), "records": nv_recs, "found": naver_file is not None})
+
+    # 구글 (API)
+    g_recs, logs = get_google_rows(since, until, SECRETS, logs)
+    ad_data.append({"source": ad_source("구글"), "records": g_recs, "found": google_ok(SECRETS)})
+
+    # 메타 (API)
+    m_recs, logs = get_meta_rows(since, until, SECRETS, logs)
+    ad_data.append({"source": ad_source("메타"), "records": m_recs, "found": meta_ok(SECRETS)})
+
+    # 사람인 (업로드)
+    sr_recs, logs = parse_upload(saramin_file, ad_source("사람인")["col"], logs) if saramin_file else ([], logs)
+    ad_data.append({"source": ad_source("사람인"), "records": sr_recs, "found": saramin_file is not None})
+
+    # GA4
+    ga_data = []
+    for src in GA_SOURCES:
+        recs, logs = get_ga_records(src, SECRETS, since, until, logs)
+        ga_data.append({"source": src, "records": recs, "found": bool(SECRETS.get(src["property_secret"]))})
+
+    # 매핑표 로드
+    media_index = ms.build_media_index_map(ms.load_table("media_index"))
+    ga_index = ms.build_ga_index_map(ms.load_table("ga_index"))
+    meta_map = ms.build_meta_content_map(ms.load_table("meta_map"))
+
+    result = run_pipeline(ad_data, ga_data, media_index, ga_index, meta_map)
+    raw_df = pd.DataFrame(result["rows"], columns=RAW_HEADERS)
+    check = build_check_report(result["stats"], meta_map, result["rows"])
+
+    return {
+        "raw_df": raw_df, "check": check, "logs": logs,
+        "adRowCount": result["adRowCount"], "leftoverCount": result["leftoverCount"],
+    }
+
+
+# ── 사이드바 ───────────────────────────────────────────────
+with st.sidebar:
+    st.header("📊 다우오피스 리포트")
+    today = date.today()
+    default_since = today - timedelta(days=14)
+    since = st.date_input("시작일", value=default_since)
+    until = st.date_input("종료일", value=today - timedelta(days=1))
+
+    st.divider()
+    st.caption("연동 상태")
+    st.write(("✅ " if google_ok(SECRETS) else "⚪ ") + "구글 Ads API")
+    st.write(("✅ " if meta_ok(SECRETS) else "⚪ ") + "메타 API")
+    st.write(("✅ " if ga4_ok(SECRETS) else "⚪ ") + "GA4 Data API")
+    st.caption("네이버·사람인은 원본 파일 업로드")
+
+
+tab_raw, tab_check, tab_map = st.tabs(["RAW 생성", "데이터 점검", "매핑 관리"])
+
+# ── 탭: RAW 생성 ───────────────────────────────────────────
+with tab_raw:
+    st.subheader("RAW 생성 (취합 + GA 결합)")
+    c1, c2 = st.columns(2)
+    with c1:
+        naver_file = st.file_uploader("네이버 원본 (엑셀/CSV)", type=["xlsx", "xls", "csv"], key="nv")
+    with c2:
+        saramin_file = st.file_uploader("사람인 원본 (엑셀/CSV)", type=["xlsx", "xls", "csv"], key="sr")
+
+    if st.button("🚀 RAW 생성", type="primary"):
+        with st.spinner("취합 + GA 결합 중..."):
+            try:
+                st.session_state["result"] = run_generation(
+                    since.strftime("%Y-%m-%d"), until.strftime("%Y-%m-%d"),
+                    naver_file, saramin_file,
+                )
+            except Exception as e:
+                st.session_state["result"] = None
+                st.error(f"실행 오류: {e}")
+                st.exception(e)
+
+    res = st.session_state.get("result")
+    if res:
+        ck = res["check"]
+        msg = (f"완료 — 총 {len(res['raw_df'])}행 "
+               f"(광고 {res['adRowCount']} / GA 미매칭 {res['leftoverCount']})")
+        if ck["pass"]:
+            st.success(msg + " · 점검 이상 없음")
+        else:
+            st.warning(msg + f" · 점검 확인 항목 {ck['issues']}건 (‘데이터 점검’ 탭 확인)")
+
+        st.download_button(
+            "⬇️ RAW.xlsx 다운로드",
+            data=build_xlsx(res["raw_df"], ck),
+            file_name=f"다우오피스_RAW_{since:%y%m%d}_{until:%y%m%d}.xlsx",
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        )
+        st.dataframe(res["raw_df"], use_container_width=True, height=520)
+
+        with st.expander("실행 로그"):
+            st.code("\n".join(res["logs"]) or "(로그 없음)")
+    else:
+        st.info("기간을 고르고 필요한 원본을 업로드한 뒤 ‘RAW 생성’을 누르세요.")
+
+# ── 탭: 데이터 점검 ────────────────────────────────────────
+with tab_check:
+    st.subheader("데이터 점검 리포트")
+    res = st.session_state.get("result")
+    if not res:
+        st.info("먼저 ‘RAW 생성’ 탭에서 생성을 실행하세요.")
+    else:
+        ck = res["check"]
+        if ck["pass"]:
+            st.success("점검 결과: 이상 없음")
+        else:
+            st.error(f"점검 결과: 확인 항목 {ck['issues']}건")
+        for sec in ck["sections"]:
+            icon = "✅" if sec["pass"] else "❌"
+            st.markdown(f"**{icon} {sec['title']}**")
+            st.dataframe(sec["df"], use_container_width=True, hide_index=True)
+
+# ── 탭: 매핑 관리 ──────────────────────────────────────────
+with tab_map:
+    st.subheader("매핑표 관리")
+    st.caption("편집 후 ‘저장’을 눌러야 반영됩니다. 엑셀 업로드로 전체 교체도 가능합니다.")
+
+    def mapping_editor(key, title, help_text):
+        st.markdown(f"### {title}")
+        st.caption(help_text)
+        up = st.file_uploader(f"{title} 엑셀/CSV 업로드(전체 교체)", type=["xlsx", "xls", "csv"], key=f"up_{key}")
+        if up is not None:
+            try:
+                if up.name.lower().endswith(".csv"):
+                    new_df = pd.read_csv(up, dtype=str).fillna("")
+                else:
+                    new_df = pd.read_excel(up, dtype=str).fillna("")
+                ms.save_table(key, new_df)
+                st.success(f"{title} 업로드 저장 완료")
+            except Exception as e:
+                st.error(f"업로드 실패: {e}")
+
+        df = ms.load_table(key)
+        edited = st.data_editor(df, num_rows="dynamic", use_container_width=True, key=f"ed_{key}")
+        if st.button(f"💾 {title} 저장", key=f"save_{key}"):
+            ms.save_table(key, edited)
+            st.success(f"{title} 저장 완료")
+
+    sub1, sub2, sub3 = st.tabs(["매체 INDEX", "GA INDEX", "meta 정리"])
+    with sub1:
+        mapping_editor("media_index", "매체 INDEX",
+                       "캠페인 → 브랜드·구분. 광고 캠페인명을 브랜드/구분으로 분류합니다.")
+    with sub2:
+        mapping_editor("ga_index", "GA INDEX",
+                       "브랜드 + 세션 소스/매체 → 구분·매체·디바이스. 소스/매체 목록이 화이트리스트 역할도 합니다.")
+    with sub3:
+        mapping_editor("meta_map", "meta 정리",
+                       "캠페인 + 광고세트 + 광고이름 → ga컨텐츠. 메타 광고의 GA 결합키를 지정합니다.")

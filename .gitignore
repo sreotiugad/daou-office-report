@@ -1,0 +1,25 @@
+# secrets
+.streamlit/secrets.toml
+*.json
+!package*.json
+
+# 매핑 CSV (운영 데이터, 각자 로컬/배포에서 관리)
+data/*.csv
+
+# python
+__pycache__/
+*.pyc
+.venv/
+venv/
+env/
+
+# os / editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# 업로드/임시 산출물
+*.xlsx
+*.xls
+~$*

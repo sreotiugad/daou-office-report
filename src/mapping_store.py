@@ -1,0 +1,118 @@
+"""
+매핑표 저장소 — 매체 INDEX / GA INDEX / meta 정리 3종을 data/*.csv로 영속.
+
+GAS 원본은 구글시트의 INDEX 시트(A·B·C열, G~K열)와 [meta 정리] 시트를 읽었으나,
+여기서는 Streamlit 안에서 편집·업로드하고 CSV로 저장한다.
+
+각 표를 파이프라인이 쓰는 룩업 dict 로 변환하는 build_* 함수도 함께 제공한다.
+"""
+import os
+import pandas as pd
+
+from .config import UNCLASSIFIED
+from .helpers import to_str, norm_medium, normalize_device, make_ga_index_key, make_meta_key
+
+_DATA_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "data")
+
+# 각 매핑표의 파일명과 컬럼 스키마
+MEDIA_INDEX_COLS = ["캠페인", "브랜드", "구분"]
+GA_INDEX_COLS = ["브랜드", "소스/매체", "구분", "매체", "디바이스"]
+META_MAP_COLS = ["캠페인", "광고세트", "광고이름", "ga컨텐츠"]
+
+_FILES = {
+    "media_index": ("media_index.csv", MEDIA_INDEX_COLS),
+    "ga_index": ("ga_index.csv", GA_INDEX_COLS),
+    "meta_map": ("meta_map.csv", META_MAP_COLS),
+}
+
+
+def _path(key):
+    return os.path.join(_DATA_DIR, _FILES[key][0])
+
+
+def ensure_data_dir():
+    os.makedirs(_DATA_DIR, exist_ok=True)
+
+
+def load_table(key):
+    """CSV를 DataFrame으로 로드. 없으면 빈 스키마 반환."""
+    cols = _FILES[key][1]
+    p = _path(key)
+    if os.path.exists(p):
+        try:
+            df = pd.read_csv(p, dtype=str).fillna("")
+            # 스키마 정합성 맞추기
+            for c in cols:
+                if c not in df.columns:
+                    df[c] = ""
+            return df[cols]
+        except Exception:
+            pass
+    return pd.DataFrame(columns=cols)
+
+
+def save_table(key, df):
+    """DataFrame을 CSV로 저장 (스키마 컬럼만, 문자열로)."""
+    ensure_data_dir()
+    cols = _FILES[key][1]
+    out = df.copy()
+    for c in cols:
+        if c not in out.columns:
+            out[c] = ""
+    out = out[cols].fillna("").astype(str)
+    out.to_csv(_path(key), index=False, encoding="utf-8-sig")
+
+
+# ── 파이프라인용 룩업 변환 ──────────────────────────────────
+
+def build_media_index_map(df):
+    """{캠페인: {'brand':..., 'gubun':...}}."""
+    m = {}
+    for _, row in df.iterrows():
+        campaign = to_str(row.get("캠페인"))
+        if not campaign:
+            continue
+        m[campaign] = {
+            "brand": to_str(row.get("브랜드")) or UNCLASSIFIED,
+            "gubun": to_str(row.get("구분")) or UNCLASSIFIED,
+        }
+    return m
+
+
+def build_ga_index_map(df):
+    """GAS buildGaIndexMap 상당.
+    반환: {byKey, byMedium, whitelist, count}
+    """
+    result = {"byKey": {}, "byMedium": {}, "whitelist": {}, "count": 0}
+    for _, row in df.iterrows():
+        brand = to_str(row.get("브랜드"))
+        medium_raw = to_str(row.get("소스/매체"))
+        if not medium_raw:
+            continue
+        info = {
+            "gubun": to_str(row.get("구분")) or UNCLASSIFIED,
+            "media": to_str(row.get("매체")) or UNCLASSIFIED,
+            "device": normalize_device(row.get("디바이스")),
+            "deviceRaw": to_str(row.get("디바이스")),
+        }
+        nm = norm_medium(medium_raw)
+        result["whitelist"][nm] = True
+        if nm not in result["byMedium"]:
+            result["byMedium"][nm] = info
+        if brand:
+            result["byKey"][make_ga_index_key(brand, medium_raw)] = info
+        result["count"] += 1
+    return result
+
+
+def build_meta_content_map(df):
+    """GAS buildMetaContentMap 상당. 반환: {data:{key:content}, count}."""
+    m = {"data": {}, "count": 0}
+    for _, row in df.iterrows():
+        content = to_str(row.get("ga컨텐츠"))
+        if not content:
+            continue
+        key = make_meta_key(row.get("캠페인"), row.get("광고세트"), row.get("광고이름"))
+        m["data"][key] = content
+        m["count"] += 1
+    return m
