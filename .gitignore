@@ -3,8 +3,8 @@
 *.json
 !package*.json
 
-# 매핑 CSV (운영 데이터, 각자 로컬/배포에서 관리)
-data/*.csv
+# 매핑 CSV(data/*.csv)는 배포 시 필요하므로 커밋한다.
+# (Streamlit Cloud 파일시스템은 재배포 시 초기화되므로 repo 값이 기준이 됨)
 
 # python
 __pycache__/

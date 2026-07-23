@@ -17,7 +17,7 @@ _DATA_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file_
 # 각 매핑표의 파일명과 컬럼 스키마
 MEDIA_INDEX_COLS = ["캠페인", "브랜드", "구분"]
 GA_INDEX_COLS = ["브랜드", "소스/매체", "구분", "매체", "디바이스"]
-META_MAP_COLS = ["캠페인", "광고세트", "광고이름", "ga컨텐츠"]
+META_MAP_COLS = ["캠페인", "광고세트", "광고이름", "ga캠페인", "ga컨텐츠"]
 
 _FILES = {
     "media_index": ("media_index.csv", MEDIA_INDEX_COLS),
