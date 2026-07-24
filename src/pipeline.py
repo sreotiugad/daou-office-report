@@ -298,11 +298,20 @@ def apply_brand_search(rows, contracts, since, until, stats):
         for day in _date_iter(lo, hi):
             found = None
             for r in rows:
-                if (to_str(r[4]) == day and to_str(r[7]) == c["adName"]
+                # 광고이름만으로는 SA/BSA 동명 키워드가 섞이므로
+                # 구분·캠페인·광고그룹까지(계약에 값이 있으면) 정밀 매칭한다.
+                if not (to_str(r[4]) == day and to_str(r[7]) == c["adName"]
                         and to_str(r[2]) == c["media"] and to_str(r[0]) == c["brand"]
                         and to_str(r[3]) == c["device"]):
-                    found = r
-                    break
+                    continue
+                if c.get("gubun") and to_str(r[1]) != c["gubun"]:
+                    continue
+                if c.get("campaign") and to_str(r[5]) != c["campaign"]:
+                    continue
+                if c.get("adGroup") and to_str(r[6]) != c["adGroup"]:
+                    continue
+                found = r
+                break
             if found is not None:
                 found[10] = fee
                 filled += 1
