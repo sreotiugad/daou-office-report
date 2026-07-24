@@ -111,6 +111,20 @@ def _match_columns(header_cells):
     return mapping
 
 
+def detect_brand(file):
+    """GA 업로드 파일이 HR인지 DO인지 내용으로 판별.
+    '직원수' 컬럼이 있으면 HR, 없으면 DO. 판별 불가면 None."""
+    try:
+        raw = _read_any(file)
+        if raw is None or raw.empty:
+            return None
+        hrow, _ = _detect_header_row(raw)
+        colmap = _match_columns(raw.iloc[hrow].tolist())
+        return "HR" if colmap.get("emp") is not None else "DO"
+    except Exception:
+        return None
+
+
 def parse_ga_upload(file, source, logs=None):
     """GA 원본 엑셀/CSV → GA record 리스트. source 는 GA_SOURCES 항목(brand 등)."""
     if logs is None:

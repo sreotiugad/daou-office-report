@@ -164,10 +164,23 @@ def run_generation(since, until, naver_file, saramin_file, ga_files=None):
     sr_recs, logs = parse_upload(saramin_file, ad_source("사람인")["col"], logs) if saramin_file else ([], logs)
     ad_data.append({"source": ad_source("사람인"), "records": sr_recs, "found": saramin_file is not None})
 
-    # GA : 파일 업로드가 있으면 파일 우선, 없으면 GA4 API
+    # GA 파일 자동 판별: 슬롯이 바뀌어 올라와도 내용(직원수 컬럼=HR)으로 브랜드에 맞춘다.
+    from src.sources.ga_upload import detect_brand
+    slot_map = {"GA_DO": "DO", "GA_HR": "HR"}
+    ga_by_brand = {}
+    for slot, gfile in ga_files.items():
+        if gfile is None:
+            continue
+        b = detect_brand(gfile) or slot_map.get(slot)
+        expected = slot_map.get(slot)
+        if b != expected:
+            logs.append(f"⚠️ GA 파일 슬롯 자동보정: '{slot}' 칸의 파일이 {b} 데이터로 판별되어 {b}로 처리합니다.")
+        ga_by_brand[b] = gfile
+
+    # GA : 파일이 있으면 파일 우선, 없으면 GA4 API
     ga_data = []
     for src in GA_SOURCES:
-        gfile = ga_files.get(src["sheet"])
+        gfile = ga_by_brand.get(src["brand"])
         if gfile is not None:
             recs, logs = parse_ga_upload(gfile, src, logs)
             ga_data.append({"source": src, "records": recs, "found": True})
