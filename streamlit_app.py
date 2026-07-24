@@ -331,7 +331,7 @@ with tab_map:
             ms.save_table(key, edited)
             st.success(f"{title} 저장 완료")
 
-    sub1, sub2, sub3, sub4 = st.tabs(["매체 INDEX", "GA INDEX", "meta 정리", "브랜드검색 비용"])
+    sub1, sub2, sub3, sub4 = st.tabs(["매체 INDEX", "GA INDEX", "meta 정리", "고정비(브검·사람인)"])
     with sub1:
         mapping_editor("media_index", "매체 INDEX",
                        "캠페인 → 브랜드·구분. 광고 캠페인명을 브랜드/구분으로 분류합니다.")
@@ -342,7 +342,8 @@ with tab_map:
         mapping_editor("meta_map", "meta 정리",
                        "캠페인 + 광고세트 + 광고이름 → ga컨텐츠. 메타 광고의 GA 결합키를 지정합니다.")
     with sub4:
-        mapping_editor("brand_search", "브랜드검색 비용(고정 계약)",
-                       "네이버 브랜드검색처럼 클릭과금이 아닌 고정비. 계약 기간(시작일~종료일) 동안 "
-                       "매일 '일일광고비'가 지정한 (브랜드·매체·디바이스·광고이름) 행의 광고비로 채워집니다. "
+        mapping_editor("brand_search", "고정비 계약 (브랜드검색·사람인 등)",
+                       "클릭과금이 아닌 정액 계약비(네이버 브랜드검색, 사람인 배너 등). 계약 기간"
+                       "(시작일~종료일) 동안 매일 '일일광고비'가 지정한 (브랜드·매체·디바이스·광고이름) "
+                       "행의 광고비로 채워집니다. 해당 행이 없는 날은 새 행이 추가됩니다. "
                        "기간을 비우면 조회기간 전체에 적용됩니다.")
