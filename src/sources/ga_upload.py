@@ -150,7 +150,9 @@ def parse_ga_upload(file, source, logs=None):
         medium = to_str(cell(row, "medium"))
         conv = to_num(cell(row, "conv"))
         emp = to_num(cell(row, "emp"))
-        if not ymd and not medium and conv == 0 and emp == 0:
+        # 실제 GA 데이터 행은 모두 날짜가 있다. 날짜 없는 행은
+        # 'Grand total'(합계)·소계·빈 행이므로 건너뛴다(원본 전환 2배 부풀림 방지).
+        if not ymd:
             continue
         records.append({
             "date": ymd,
