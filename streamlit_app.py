@@ -241,16 +241,16 @@ with tab_raw:
 
     c1, c2 = st.columns(2)
     with c1:
-        naver_file = st.file_uploader("네이버 원본 (엑셀/CSV)", type=["xlsx", "xls", "csv"], key="nv")
+        naver_file = st.file_uploader("네이버 원본 (엑셀/CSV/TSV)", type=["xlsx", "xls", "csv", "tsv", "txt"], key="nv")
     with c2:
-        saramin_file = st.file_uploader("사람인 원본 (엑셀/CSV)", type=["xlsx", "xls", "csv"], key="sr")
+        saramin_file = st.file_uploader("사람인 원본 (엑셀/CSV/TSV)", type=["xlsx", "xls", "csv", "tsv", "txt"], key="sr")
 
     st.markdown("**GA 원본 업로드** (선택 — 넣으면 GA4 API 대신 이 파일을 사용)")
     g1, g2 = st.columns(2)
     with g1:
-        ga_do_file = st.file_uploader("GA_DO — 다우오피스 (엑셀/CSV)", type=["xlsx", "xls", "csv"], key="ga_do")
+        ga_do_file = st.file_uploader("GA_DO — 다우오피스 (엑셀/CSV/TSV)", type=["xlsx", "xls", "csv", "tsv", "txt"], key="ga_do")
     with g2:
-        ga_hr_file = st.file_uploader("GA_HR — 다우오피스HR (엑셀/CSV)", type=["xlsx", "xls", "csv"], key="ga_hr")
+        ga_hr_file = st.file_uploader("GA_HR — 다우오피스HR (엑셀/CSV/TSV)", type=["xlsx", "xls", "csv", "tsv", "txt"], key="ga_hr")
 
     if st.button("🚀 RAW 생성", type="primary"):
         with st.spinner("취합 + GA 결합 중..."):
@@ -313,11 +313,17 @@ with tab_map:
     def mapping_editor(key, title, help_text):
         st.markdown(f"### {title}")
         st.caption(help_text)
-        up = st.file_uploader(f"{title} 엑셀/CSV 업로드(전체 교체)", type=["xlsx", "xls", "csv"], key=f"up_{key}")
+        up = st.file_uploader(f"{title} 엑셀/CSV/TSV 업로드(전체 교체)", type=["xlsx", "xls", "csv", "tsv", "txt"], key=f"up_{key}")
         if up is not None:
             try:
-                if up.name.lower().endswith(".csv"):
-                    new_df = pd.read_csv(up, dtype=str).fillna("")
+                nm = up.name.lower()
+                if nm.endswith((".csv", ".tsv", ".txt")):
+                    sep = "\t" if nm.endswith((".tsv", ".txt")) else None  # None=자동감지
+                    try:
+                        new_df = pd.read_csv(up, dtype=str, sep=sep, engine="python").fillna("")
+                    except UnicodeDecodeError:
+                        up.seek(0)
+                        new_df = pd.read_csv(up, dtype=str, sep=sep, engine="python", encoding="cp949").fillna("")
                 else:
                     new_df = pd.read_excel(up, dtype=str).fillna("")
                 ms.save_table(key, new_df)

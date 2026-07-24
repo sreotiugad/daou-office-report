@@ -19,7 +19,7 @@ def _read_any(file):
     """엑셀/CSV 를 헤더 없이 원시 2차원으로 읽는다.
     CSV는 줄마다 칸 수가 달라도(제목행/합계행 등) 안전하게 읽는다."""
     name = getattr(file, "name", str(file)).lower()
-    if name.endswith(".csv"):
+    if name.endswith((".csv", ".tsv", ".txt")):
         return _read_csv_ragged(file)
     return pd.read_excel(file, header=None, dtype=str)
 

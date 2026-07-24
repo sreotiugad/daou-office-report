@@ -32,7 +32,7 @@ _FIELDS = ["date", "medium", "campaign", "content", "conv", "emp"]
 
 def _read_any(file):
     name = getattr(file, "name", str(file)).lower()
-    if name.endswith(".csv"):
+    if name.endswith((".csv", ".tsv", ".txt")):
         return _read_csv_ragged(file)
     return pd.read_excel(file, header=None, dtype=str)
 
