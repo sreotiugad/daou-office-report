@@ -18,6 +18,7 @@ from src import mapping_store as ms
 from src.sources.google_ads import get_google_rows, is_configured as google_ok
 from src.sources.meta_ads import get_meta_rows, is_configured as meta_ok
 from src.sources.upload import parse_upload
+from src.sources.ga_upload import parse_ga_upload
 from src.ga4.client import get_ga_records, is_configured as ga4_ok
 from src.pipeline import run_pipeline
 from src.validate import build_check_report
@@ -142,9 +143,10 @@ def build_xlsx(raw_df, check):
 
 
 # ── RAW 생성 실행 ──────────────────────────────────────────
-def run_generation(since, until, naver_file, saramin_file):
+def run_generation(since, until, naver_file, saramin_file, ga_files=None):
     logs = []
     ad_data = []
+    ga_files = ga_files or {}
 
     # 네이버 (업로드)
     nv_recs, logs = parse_upload(naver_file, ad_source("네이버")["col"], logs) if naver_file else ([], logs)
@@ -162,11 +164,16 @@ def run_generation(since, until, naver_file, saramin_file):
     sr_recs, logs = parse_upload(saramin_file, ad_source("사람인")["col"], logs) if saramin_file else ([], logs)
     ad_data.append({"source": ad_source("사람인"), "records": sr_recs, "found": saramin_file is not None})
 
-    # GA4
+    # GA : 파일 업로드가 있으면 파일 우선, 없으면 GA4 API
     ga_data = []
     for src in GA_SOURCES:
-        recs, logs = get_ga_records(src, SECRETS, since, until, logs)
-        ga_data.append({"source": src, "records": recs, "found": bool(SECRETS.get(src["property_secret"]))})
+        gfile = ga_files.get(src["sheet"])
+        if gfile is not None:
+            recs, logs = parse_ga_upload(gfile, src, logs)
+            ga_data.append({"source": src, "records": recs, "found": True})
+        else:
+            recs, logs = get_ga_records(src, SECRETS, since, until, logs)
+            ga_data.append({"source": src, "records": recs, "found": bool(SECRETS.get(src["property_secret"]))})
 
     # 매핑표 로드
     media_index = ms.build_media_index_map(ms.load_table("media_index"))
@@ -183,13 +190,37 @@ def run_generation(since, until, naver_file, saramin_file):
     }
 
 
+# ── 날짜 프리셋 콜백 (위젯 생성 전에 session_state 갱신) ──────
+def _preset_last7():
+    today = date.today()
+    e = today - timedelta(days=1)
+    st.session_state["since_date"] = e - timedelta(days=6)
+    st.session_state["until_date"] = e
+
+
+def _preset_lastweek():
+    today = date.today()
+    this_mon = today - timedelta(days=today.weekday())
+    last_mon = this_mon - timedelta(days=7)
+    st.session_state["since_date"] = last_mon
+    st.session_state["until_date"] = last_mon + timedelta(days=6)
+
+
 # ── 사이드바 ───────────────────────────────────────────────
 with st.sidebar:
     st.header("📊 다우오피스 리포트")
     today = date.today()
-    default_since = today - timedelta(days=14)
-    since = st.date_input("시작일", value=default_since)
-    until = st.date_input("종료일", value=today - timedelta(days=1))
+    if "since_date" not in st.session_state:
+        st.session_state["since_date"] = today - timedelta(days=14)
+    if "until_date" not in st.session_state:
+        st.session_state["until_date"] = today - timedelta(days=1)
+
+    since = st.date_input("시작일", key="since_date")
+    until = st.date_input("종료일", key="until_date")
+
+    b1, b2 = st.columns(2)
+    b1.button("최근 7일", on_click=_preset_last7, use_container_width=True)
+    b2.button("지난주(월~일)", on_click=_preset_lastweek, use_container_width=True)
 
     st.divider()
     st.caption("연동 상태")
@@ -204,11 +235,20 @@ tab_raw, tab_check, tab_map = st.tabs(["RAW 생성", "데이터 점검", "매핑
 # ── 탭: RAW 생성 ───────────────────────────────────────────
 with tab_raw:
     st.subheader("RAW 생성 (취합 + GA 결합)")
+    st.caption("네이버·사람인은 원본 업로드 · 구글·메타는 API · GA는 API 또는 원본 업로드")
+
     c1, c2 = st.columns(2)
     with c1:
         naver_file = st.file_uploader("네이버 원본 (엑셀/CSV)", type=["xlsx", "xls", "csv"], key="nv")
     with c2:
         saramin_file = st.file_uploader("사람인 원본 (엑셀/CSV)", type=["xlsx", "xls", "csv"], key="sr")
+
+    st.markdown("**GA 원본 업로드** (선택 — 넣으면 GA4 API 대신 이 파일을 사용)")
+    g1, g2 = st.columns(2)
+    with g1:
+        ga_do_file = st.file_uploader("GA_DO — 다우오피스 (엑셀/CSV)", type=["xlsx", "xls", "csv"], key="ga_do")
+    with g2:
+        ga_hr_file = st.file_uploader("GA_HR — 다우오피스HR (엑셀/CSV)", type=["xlsx", "xls", "csv"], key="ga_hr")
 
     if st.button("🚀 RAW 생성", type="primary"):
         with st.spinner("취합 + GA 결합 중..."):
@@ -216,6 +256,7 @@ with tab_raw:
                 st.session_state["result"] = run_generation(
                     since.strftime("%Y-%m-%d"), until.strftime("%Y-%m-%d"),
                     naver_file, saramin_file,
+                    ga_files={"GA_DO": ga_do_file, "GA_HR": ga_hr_file},
                 )
             except Exception as e:
                 st.session_state["result"] = None
