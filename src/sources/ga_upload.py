@@ -34,7 +34,20 @@ def _read_any(file):
     name = getattr(file, "name", str(file)).lower()
     if name.endswith((".csv", ".tsv", ".txt")):
         return _read_csv_ragged(file)
-    return pd.read_excel(file, header=None, dtype=str)
+    if name.endswith((".xlsx", ".xls", ".xlsm")):
+        return pd.read_excel(file, header=None, dtype=str)
+    # 확장자가 불명확하면 내용으로 판별: xlsx는 ZIP(PK)로 시작, 그 외엔 텍스트
+    try:
+        if hasattr(file, "seek"):
+            file.seek(0)
+        head = file.read(4)
+        if hasattr(file, "seek"):
+            file.seek(0)
+        if isinstance(head, bytes) and head[:2] == b"PK":
+            return pd.read_excel(file, header=None, dtype=str)
+    except Exception:
+        pass
+    return _read_csv_ragged(file)
 
 
 def _read_csv_ragged(file):
