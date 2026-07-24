@@ -150,9 +150,10 @@ def parse_ga_upload(file, source, logs=None):
         medium = to_str(cell(row, "medium"))
         conv = to_num(cell(row, "conv"))
         emp = to_num(cell(row, "emp"))
-        # 실제 GA 데이터 행은 모두 날짜가 있다. 날짜 없는 행은
-        # 'Grand total'(합계)·소계·빈 행이므로 건너뛴다(원본 전환 2배 부풀림 방지).
-        if not ymd:
+        # GAS 원본과 동일하게: 완전 빈 행만 건너뛴다.
+        # (GAS는 'Grand total' 합계행도 포함해 원본 전환을 집계하며,
+        #  이 행은 소스/매체가 비어 화이트리스트에서 걸러져 최종에는 영향 없음)
+        if not ymd and not medium and conv == 0 and emp == 0:
             continue
         records.append({
             "date": ymd,
