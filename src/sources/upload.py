@@ -16,15 +16,40 @@ _FIELDS = ["device", "date", "campaign", "adGroup", "adName",
 
 
 def _read_any(file):
-    """엑셀/CSV 를 헤더 없이 원시 2차원으로 읽는다."""
+    """엑셀/CSV 를 헤더 없이 원시 2차원으로 읽는다.
+    CSV는 줄마다 칸 수가 달라도(제목행/합계행 등) 안전하게 읽는다."""
     name = getattr(file, "name", str(file)).lower()
     if name.endswith(".csv"):
-        try:
-            return pd.read_csv(file, header=None, dtype=str, encoding="utf-8")
-        except UnicodeDecodeError:
-            file.seek(0) if hasattr(file, "seek") else None
-            return pd.read_csv(file, header=None, dtype=str, encoding="cp949")
+        return _read_csv_ragged(file)
     return pd.read_excel(file, header=None, dtype=str)
+
+
+def _read_csv_ragged(file):
+    """칸 수가 들쭉날쭉한 CSV를 csv 모듈로 안전하게 읽어 DataFrame 반환."""
+    import csv
+    import io as _io
+    if hasattr(file, "seek"):
+        file.seek(0)
+    data = file.read()
+    if isinstance(data, bytes):
+        for enc in ("utf-8-sig", "utf-8", "cp949"):
+            try:
+                text = data.decode(enc)
+                break
+            except UnicodeDecodeError:
+                continue
+        else:
+            text = data.decode("utf-8", errors="replace")
+    else:
+        text = data
+    sample = text[:4096]
+    delim = "\t" if sample.count("\t") > sample.count(",") else ","
+    rows = list(csv.reader(_io.StringIO(text), delimiter=delim))
+    if not rows:
+        return pd.DataFrame()
+    maxw = max(len(r) for r in rows)
+    rows = [r + [""] * (maxw - len(r)) for r in rows]
+    return pd.DataFrame(rows, dtype=str).fillna("")
 
 
 def _candidates(col_spec, field):
