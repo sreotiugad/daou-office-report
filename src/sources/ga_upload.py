@@ -29,6 +29,12 @@ _GA_CANDS = {
 
 _FIELDS = ["date", "medium", "campaign", "content", "conv", "emp"]
 
+# GAS 원본은 GA 데이터를 무조건 9행(1-based)부터 읽는다(dataStart=9 → 0-based 8).
+# 이 고정 시작 때문에 HR은 합계(Grand total)행이 제외되고(원본=실제),
+# DO는 이벤트명 헤더가 한 줄 더 있어 합계행이 9행에 걸려 포함된다(원본=실제+합계).
+# 정답(GAS) 재현을 위해 동일하게 처리한다.
+GA_DATA_START_IDX = 8
+
 
 def _read_any(file):
     name = getattr(file, "name", str(file)).lower()
@@ -157,16 +163,17 @@ def parse_ga_upload(file, source, logs=None):
             return None
         return row[idx]
 
+    # GAS와 동일하게 9행 고정 시작(단, 헤더 이전으로는 내려가지 않게 보정)
+    data_start = max(hrow + 1, GA_DATA_START_IDX)
     records = []
-    for _, r in raw.iloc[hrow + 1:].iterrows():
+    for _, r in raw.iloc[data_start:].iterrows():
         row = r.tolist()
         ymd = normalize_date(cell(row, "date"))
         medium = to_str(cell(row, "medium"))
         conv = to_num(cell(row, "conv"))
         emp = to_num(cell(row, "emp"))
-        # GAS 원본과 동일하게: 완전 빈 행만 건너뛴다.
-        # (GAS는 'Grand total' 합계행도 포함해 원본 전환을 집계하며,
-        #  이 행은 소스/매체가 비어 화이트리스트에서 걸러져 최종에는 영향 없음)
+        # 완전 빈 행만 건너뛴다. (DO의 'Grand total' 합계행은 9행에 걸려
+        #  포함되며, 소스/매체가 비어 화이트리스트에서 걸러져 최종엔 영향 없음)
         if not ymd and not medium and conv == 0 and emp == 0:
             continue
         records.append({

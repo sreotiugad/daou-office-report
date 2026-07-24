@@ -62,8 +62,9 @@ def build_ga_maps(ga_data, ga_index, stats, since=None, until=None):
 
             if not medium_raw and not ymd and conv == 0 and emp == 0:
                 continue
-            # 선택 기간 밖(또는 날짜 없는 합계행)은 제외
-            if not _in_range(ymd, since, until):
+            # 날짜가 있는데 선택 기간 밖이면 제외. (날짜 없는 합계행은
+            #  GAS와 동일하게 원본 집계에 남기되, 소스/매체 공란이라 최종엔 미반영)
+            if ymd and since and until and not (since <= ymd <= until):
                 continue
             st["rawRows"] += 1
             st["totalConv"] += conv
