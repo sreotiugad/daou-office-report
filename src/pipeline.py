@@ -30,8 +30,19 @@ def new_stats():
     }
 
 
+# ── 기간 필터 헬퍼 ──────────────────────────────────────────
+def _in_range(ymd, since, until):
+    """since/until 이 지정됐으면 [since, until] 안의 날짜만 True.
+    날짜가 없거나(합계행 등) 범위 밖이면 False. 기간 미지정이면 항상 True."""
+    if not since or not until:
+        return True
+    if not ymd:
+        return False
+    return since <= ymd <= until
+
+
 # ── 7. GA 집계 (화이트리스트 + 6중 키) ─────────────────────
-def build_ga_maps(ga_data, ga_index, stats):
+def build_ga_maps(ga_data, ga_index, stats, since=None, until=None):
     conv_map, emp_map, detail = {}, {}, {}
 
     for entry in ga_data:
@@ -50,6 +61,9 @@ def build_ga_maps(ga_data, ga_index, stats):
             emp = to_num(row.get("emp"))
 
             if not medium_raw and not ymd and conv == 0 and emp == 0:
+                continue
+            # 선택 기간 밖(또는 날짜 없는 합계행)은 제외
+            if not _in_range(ymd, since, until):
                 continue
             st["rawRows"] += 1
             st["totalConv"] += conv
@@ -111,7 +125,7 @@ def build_ga_maps(ga_data, ga_index, stats):
 
 
 # ── 8. 광고 소스 → RAW 행 (1단계) ──────────────────────────
-def build_ad_rows(ad_data, media_index, meta_map, stats):
+def build_ad_rows(ad_data, media_index, meta_map, stats, since=None, until=None):
     rows = []
     key_groups = {}
 
@@ -135,6 +149,10 @@ def build_ad_rows(ad_data, media_index, meta_map, stats):
             ymd = normalize_date(rec.get("date"))
             if not campaign and not ymd:
                 st["skipEmpty"] += 1
+                continue
+            # 선택 기간 밖은 제외 (업로드 파일이 더 긴 기간이어도 그 주만 집계)
+            if since and until and not _in_range(ymd, since, until):
+                st["skipRange"] = st.get("skipRange", 0) + 1
                 continue
             if filter_kw and filter_kw not in campaign:
                 st["skipFilter"] += 1
@@ -331,8 +349,8 @@ def apply_brand_search(rows, contracts, since, until, stats):
 def run_pipeline(ad_data, ga_data, media_index, ga_index, meta_map,
                  brand_search=None, since=None, until=None):
     stats = new_stats()
-    ga_maps = build_ga_maps(ga_data, ga_index, stats)
-    built = build_ad_rows(ad_data, media_index, meta_map, stats)
+    ga_maps = build_ga_maps(ga_data, ga_index, stats, since, until)
+    built = build_ad_rows(ad_data, media_index, meta_map, stats, since, until)
     used_keys = {}
     assign_ga_to_ad_rows(built["rows"], built["keyGroups"], ga_maps, used_keys, stats)
     # 브랜드검색 고정비는 광고 행에 채운다(레프트오버 합류 전).
