@@ -179,8 +179,10 @@ def run_generation(since, until, naver_file, saramin_file, ga_files=None):
     media_index = ms.build_media_index_map(ms.load_table("media_index"))
     ga_index = ms.build_ga_index_map(ms.load_table("ga_index"))
     meta_map = ms.build_meta_content_map(ms.load_table("meta_map"))
+    brand_search = ms.build_brand_search_contracts(ms.load_table("brand_search"))
 
-    result = run_pipeline(ad_data, ga_data, media_index, ga_index, meta_map)
+    result = run_pipeline(ad_data, ga_data, media_index, ga_index, meta_map,
+                          brand_search=brand_search, since=since, until=until)
     raw_df = pd.DataFrame(result["rows"], columns=RAW_HEADERS)
     check = build_check_report(result["stats"], meta_map, result["rows"])
 
@@ -329,7 +331,7 @@ with tab_map:
             ms.save_table(key, edited)
             st.success(f"{title} 저장 완료")
 
-    sub1, sub2, sub3 = st.tabs(["매체 INDEX", "GA INDEX", "meta 정리"])
+    sub1, sub2, sub3, sub4 = st.tabs(["매체 INDEX", "GA INDEX", "meta 정리", "브랜드검색 비용"])
     with sub1:
         mapping_editor("media_index", "매체 INDEX",
                        "캠페인 → 브랜드·구분. 광고 캠페인명을 브랜드/구분으로 분류합니다.")
@@ -339,3 +341,8 @@ with tab_map:
     with sub3:
         mapping_editor("meta_map", "meta 정리",
                        "캠페인 + 광고세트 + 광고이름 → ga컨텐츠. 메타 광고의 GA 결합키를 지정합니다.")
+    with sub4:
+        mapping_editor("brand_search", "브랜드검색 비용(고정 계약)",
+                       "네이버 브랜드검색처럼 클릭과금이 아닌 고정비. 계약 기간(시작일~종료일) 동안 "
+                       "매일 '일일광고비'가 지정한 (브랜드·매체·디바이스·광고이름) 행의 광고비로 채워집니다. "
+                       "기간을 비우면 조회기간 전체에 적용됩니다.")

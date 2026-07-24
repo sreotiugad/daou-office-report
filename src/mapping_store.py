@@ -18,11 +18,15 @@ _DATA_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file_
 MEDIA_INDEX_COLS = ["캠페인", "브랜드", "구분"]
 GA_INDEX_COLS = ["브랜드", "소스/매체", "구분", "매체", "디바이스"]
 META_MAP_COLS = ["캠페인", "광고세트", "광고이름", "ga캠페인", "ga컨텐츠"]
+# 네이버 브랜드검색(고정 계약) — 기간 내 매일 '일일광고비'를 지정 행에 채운다.
+BRAND_SEARCH_COLS = ["브랜드", "구분", "매체", "디바이스", "캠페인", "광고그룹",
+                     "광고이름", "시작일", "종료일", "일일광고비"]
 
 _FILES = {
     "media_index": ("media_index.csv", MEDIA_INDEX_COLS),
     "ga_index": ("ga_index.csv", GA_INDEX_COLS),
     "meta_map": ("meta_map.csv", META_MAP_COLS),
+    "brand_search": ("brand_search.csv", BRAND_SEARCH_COLS),
 }
 
 
@@ -116,3 +120,27 @@ def build_meta_content_map(df):
         m["data"][key] = content
         m["count"] += 1
     return m
+
+
+def build_brand_search_contracts(df):
+    """브랜드검색 계약표 → 계약 dict 리스트. 일일광고비가 있는 행만."""
+    from .helpers import to_num, normalize_date
+    out = []
+    for _, row in df.iterrows():
+        fee = to_num(row.get("일일광고비"))
+        adname = to_str(row.get("광고이름"))
+        if fee <= 0 or not adname:
+            continue
+        out.append({
+            "brand": to_str(row.get("브랜드")) or UNCLASSIFIED,
+            "gubun": to_str(row.get("구분")) or UNCLASSIFIED,
+            "media": to_str(row.get("매체")) or "네이버",
+            "device": normalize_device(row.get("디바이스")),
+            "campaign": to_str(row.get("캠페인")),
+            "adGroup": to_str(row.get("광고그룹")),
+            "adName": adname,
+            "since": normalize_date(row.get("시작일")),
+            "until": normalize_date(row.get("종료일")),
+            "fee": fee,
+        })
+    return out

@@ -269,13 +269,65 @@ def build_leftover_ga_rows(ga_maps, used_keys, stats):
     return rows
 
 
+# ── 10-2. 브랜드검색 고정비 채우기 ─────────────────────────
+def _date_iter(since, until):
+    from datetime import datetime, timedelta
+    try:
+        d = datetime.strptime(since, "%Y-%m-%d").date()
+        e = datetime.strptime(until, "%Y-%m-%d").date()
+    except Exception:
+        return
+    while d <= e:
+        yield d.isoformat()
+        d += timedelta(days=1)
+
+
+def apply_brand_search(rows, contracts, since, until, stats):
+    """계약 기간 ∩ 조회기간의 매일, 지정 광고이름 행에 일일광고비를 채운다.
+    해당 날짜에 그 행이 이미 있으면 광고비만 덮어쓰고, 없으면 새 행을 추가한다."""
+    if not contracts or not since or not until:
+        return rows
+    added = 0
+    filled = 0
+    for c in contracts:
+        lo = max(c["since"], since) if c["since"] else since
+        hi = min(c["until"], until) if c["until"] else until
+        if lo > hi:
+            continue
+        fee = c["fee"]
+        for day in _date_iter(lo, hi):
+            found = None
+            for r in rows:
+                if (to_str(r[4]) == day and to_str(r[7]) == c["adName"]
+                        and to_str(r[2]) == c["media"] and to_str(r[0]) == c["brand"]
+                        and to_str(r[3]) == c["device"]):
+                    found = r
+                    break
+            if found is not None:
+                found[10] = fee
+                filled += 1
+            else:
+                rows.append([
+                    c["brand"], c["gubun"], c["media"], c["device"], day,
+                    c["campaign"], c["adGroup"], c["adName"],
+                    0, 0, fee, 0, 0, 0, 0,
+                ])
+                added += 1
+    stats["bsFilled"] = filled
+    stats["bsAdded"] = added
+    return rows
+
+
 # ── 통합 실행 ──────────────────────────────────────────────
-def run_pipeline(ad_data, ga_data, media_index, ga_index, meta_map):
+def run_pipeline(ad_data, ga_data, media_index, ga_index, meta_map,
+                 brand_search=None, since=None, until=None):
     stats = new_stats()
     ga_maps = build_ga_maps(ga_data, ga_index, stats)
     built = build_ad_rows(ad_data, media_index, meta_map, stats)
     used_keys = {}
     assign_ga_to_ad_rows(built["rows"], built["keyGroups"], ga_maps, used_keys, stats)
+    # 브랜드검색 고정비는 광고 행에 채운다(레프트오버 합류 전).
+    apply_brand_search(built["rows"], brand_search or [], since, until, stats)
     leftover = build_leftover_ga_rows(ga_maps, used_keys, stats)
     all_rows = built["rows"] + leftover
     return {
