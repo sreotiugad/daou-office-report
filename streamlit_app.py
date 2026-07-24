@@ -22,7 +22,86 @@ from src.ga4.client import get_ga_records, is_configured as ga4_ok
 from src.pipeline import run_pipeline
 from src.validate import build_check_report
 
-st.set_page_config(page_title="다우오피스 광고 리포트", page_icon="📊", layout="wide")
+st.set_page_config(page_title="다우오피스 광고 리포트", page_icon="💼", layout="wide")
+
+
+# ── 블루 테마 (Pretendard · hero · 카드 · 그라데이션) ──────────
+st.markdown("""
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Pretendard:wght@400;600;700;800&display=swap');
+
+:root, body, html {
+    font-family: 'Pretendard', system-ui, -apple-system, sans-serif !important;
+}
+[data-testid="stAppViewContainer"] {
+    background: linear-gradient(180deg, #f4f8ff 0%, #e9f1ff 100%) !important;
+}
+
+.hero {
+    border-radius: 28px;
+    padding: 38px 46px;
+    margin-bottom: 30px;
+    background: linear-gradient(135deg, #cfe0ff, #e3edff);
+    box-shadow: 0 25px 50px rgba(120,160,240,0.25), 0 10px 20px rgba(120,160,240,0.15);
+}
+.hero h1 {
+    margin: 0; font-weight: 800; font-size: 32px;
+    letter-spacing: -0.5px; color: #1d4ed8;
+}
+.hero p { margin-top: 10px; font-size: 15px; color: #3b6bc4; }
+
+/* 카드 컨테이너 (st.container(border=True)) */
+[data-testid="stVerticalBlockBorderWrapper"] {
+    border-radius: 22px !important;
+    border: 1px solid rgba(147,180,240,0.35) !important;
+    box-shadow: 0 14px 30px rgba(120,160,240,0.15) !important;
+}
+
+/* 기본(primary) 버튼 */
+button[kind="primary"], [data-testid="stBaseButton-primary"] {
+    border-radius: 16px !important;
+    background: linear-gradient(135deg, #4f8bf9, #6aa1ff) !important;
+    font-weight: 800 !important; color: white !important; border: none !important;
+    box-shadow: 0 10px 20px rgba(79,139,249,0.4) !important;
+    transition: all 0.2s ease !important;
+}
+button[kind="primary"]:hover, [data-testid="stBaseButton-primary"]:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 14px 28px rgba(79,139,249,0.5) !important;
+}
+button, [data-testid="stBaseButton-secondary"] { border-radius: 14px !important; }
+
+/* 다운로드 버튼도 블루로 */
+[data-testid="stDownloadButton"] button {
+    border-radius: 16px !important;
+    background: linear-gradient(135deg, #4f8bf9, #6aa1ff) !important;
+    color: white !important; font-weight: 700 !important; border: none !important;
+    box-shadow: 0 8px 18px rgba(79,139,249,0.35) !important;
+}
+
+/* 탭 */
+button[role="tab"] { font-weight: 700 !important; padding: 0.5rem 1rem !important; }
+button[aria-selected="true"] {
+    color: #1d4ed8 !important; border-bottom: 3px solid #6aa1ff !important;
+}
+
+/* 데이터프레임 라운드 */
+[data-testid="stDataFrame"], [data-testid="stDataEditor"] {
+    border-radius: 16px !important; overflow: hidden;
+    box-shadow: 0 8px 20px rgba(120,160,240,0.12);
+}
+
+/* 사이드바 */
+section[data-testid="stSidebar"] {
+    background: linear-gradient(180deg, #e6f0ff, #dbe8ff);
+}
+</style>
+
+<div class="hero">
+  <h1>💼 다우오피스 광고 리포트</h1>
+  <p>다우오피스 · 다우오피스HR 광고 RAW 생성기</p>
+</div>
+""", unsafe_allow_html=True)
 
 
 # ── secrets 안전 접근 ──────────────────────────────────────
