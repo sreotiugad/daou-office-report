@@ -19,6 +19,7 @@ from src.sources.google_ads import get_google_rows, is_configured as google_ok
 from src.sources.meta_ads import get_meta_rows, is_configured as meta_ok
 from src.sources.upload import parse_upload
 from src.sources.ga_upload import parse_ga_upload
+from src.sources.naver_api import get_naver_api_rows, is_configured as naver_ok
 from src.ga4.client import get_ga_records, is_configured as ga4_ok
 from src.pipeline import run_pipeline
 from src.validate import build_check_report
@@ -148,9 +149,13 @@ def run_generation(since, until, naver_file, saramin_file, ga_files=None):
     ad_data = []
     ga_files = ga_files or {}
 
-    # 네이버 (업로드)
-    nv_recs, logs = parse_upload(naver_file, ad_source("네이버")["col"], logs) if naver_file else ([], logs)
-    ad_data.append({"source": ad_source("네이버"), "records": nv_recs, "found": naver_file is not None})
+    # 네이버 : API 자격증명 있으면 API, 없으면 업로드 파일
+    if naver_ok(SECRETS):
+        nv_recs, logs = get_naver_api_rows(SECRETS, since, until, logs)
+        ad_data.append({"source": ad_source("네이버"), "records": nv_recs, "found": True})
+    else:
+        nv_recs, logs = parse_upload(naver_file, ad_source("네이버")["col"], logs) if naver_file else ([], logs)
+        ad_data.append({"source": ad_source("네이버"), "records": nv_recs, "found": naver_file is not None})
 
     # 구글 (API)
     g_recs, logs = get_google_rows(since, until, SECRETS, logs)
@@ -241,8 +246,9 @@ with st.sidebar:
     st.caption("연동 상태")
     st.write(("✅ " if google_ok(SECRETS) else "⚪ ") + "구글 Ads API")
     st.write(("✅ " if meta_ok(SECRETS) else "⚪ ") + "메타 API")
+    st.write(("✅ " if naver_ok(SECRETS) else "⚪ ") + "네이버 검색광고 API")
     st.write(("✅ " if ga4_ok(SECRETS) else "⚪ ") + "GA4 Data API")
-    st.caption("네이버·사람인은 원본 파일 업로드")
+    st.caption("네이버는 API 없으면 업로드 · 사람인은 원본 업로드")
 
 
 tab_raw, tab_check, tab_map = st.tabs(["RAW 생성", "데이터 점검", "매핑 관리"])
