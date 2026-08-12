@@ -256,13 +256,25 @@ tab_raw, tab_check, tab_map = st.tabs(["RAW 생성", "데이터 점검", "매핑
 # ── 탭: RAW 생성 ───────────────────────────────────────────
 with tab_raw:
     st.subheader("RAW 생성 (취합 + GA 결합)")
-    st.caption("네이버·사람인은 원본 업로드 · 구글·메타는 API · GA는 API 또는 원본 업로드")
+    _naver_api = naver_ok(SECRETS)
+    _ga_api = ga4_ok(SECRETS)
+    st.caption(
+        ("네이버 " + ("API" if _naver_api else "업로드"))
+        + " · 사람인 업로드 · 구글·메타 API · GA "
+        + ("API" if _ga_api else "업로드")
+    )
 
-    c1, c2 = st.columns(2)
-    with c1:
-        naver_file = st.file_uploader("네이버 원본 (엑셀/CSV/TSV)", type=["xlsx", "xls", "csv", "tsv", "txt"], key="nv")
-    with c2:
-        saramin_file = st.file_uploader("사람인 원본 (엑셀/CSV/TSV)", type=["xlsx", "xls", "csv", "tsv", "txt"], key="sr")
+    naver_file = None
+    if _naver_api:
+        c1 = st.container()
+        with c1:
+            saramin_file = st.file_uploader("사람인 원본 (엑셀/CSV/TSV)", type=["xlsx", "xls", "csv", "tsv", "txt"], key="sr")
+    else:
+        c1, c2 = st.columns(2)
+        with c1:
+            naver_file = st.file_uploader("네이버 원본 (엑셀/CSV/TSV)", type=["xlsx", "xls", "csv", "tsv", "txt"], key="nv")
+        with c2:
+            saramin_file = st.file_uploader("사람인 원본 (엑셀/CSV/TSV)", type=["xlsx", "xls", "csv", "tsv", "txt"], key="sr")
 
     st.markdown("**GA 원본 업로드** (선택 — 넣으면 GA4 API 대신 이 파일을 사용)")
     g1, g2 = st.columns(2)
