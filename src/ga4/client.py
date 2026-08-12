@@ -80,9 +80,11 @@ def get_ga_records(source, secrets, since, until, logs=None):
     ]
     conv_metric = s.get("conversion_metric", "keyEvents")
     metrics = [Metric(name=conv_metric)]
-    emp_metric = s.get("employee_metric") if source.get("has_emp") else None
-    if emp_metric:
-        metrics.append(Metric(name=emp_metric))
+    # 직원수는 사용자 범위 맞춤 '측정기준'(customUser:employee_size). HR만.
+    emp_dim = s.get("employee_dimension") if source.get("has_emp") else None
+    if emp_dim:
+        dims.append(Dimension(name=emp_dim))
+    emp_idx = len(dims) - 1  # 직원수 측정기준의 위치
 
     # 속성마다 전환(가입) 이벤트 이름이 다름: 소스 설정 우선
     conv_event = source.get("conversion_event") or s["conversion_event"]
@@ -113,7 +115,7 @@ def get_ga_records(source, secrets, since, until, logs=None):
         dv = [d.value for d in row.dimension_values]
         mv = [m.value for m in row.metric_values]
         conv = to_num(mv[0]) if len(mv) > 0 else 0
-        emp = to_num(mv[1]) if (emp_metric and len(mv) > 1) else 0
+        emp = to_num(dv[emp_idx]) if (emp_dim and len(dv) > emp_idx) else 0
         records.append({
             "date": normalize_date(dv[0]),
             "medium": to_str(dv[1]),

@@ -116,7 +116,8 @@ GA_SOURCES = [
 GA4_SETTINGS = {
     "conversion_event": "lead_submit",       # 소스별 값이 우선(GA_SOURCES.conversion_event)
     "conversion_metric": "keyEvents",        # 전환 = 주요 이벤트(Key events) 수
-    "employee_metric": None,                 # TODO: 직원수 맞춤 측정항목 API 이름 (없으면 0)
+    # 직원수 = 사용자 범위 맞춤 측정기준(dimension). 값(숫자)을 행별로 합산.
+    "employee_dimension": "customUser:employee_size",
     "content_dimension": "sessionManualAdContent",   # 세션 콘텐츠(utm_content)
     "medium_dimension": "sessionSourceMedium",       # 세션 소스/매체
     "campaign_dimension": "sessionCampaignName",
