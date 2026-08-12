@@ -248,7 +248,6 @@ with st.sidebar:
     st.write(("✅ " if meta_ok(SECRETS) else "⚪ ") + "메타 API")
     st.write(("✅ " if naver_ok(SECRETS) else "⚪ ") + "네이버 검색광고 API")
     st.write(("✅ " if ga4_ok(SECRETS) else "⚪ ") + "GA4 Data API")
-    st.caption("네이버는 API 없으면 업로드 · 사람인은 원본 업로드")
 
 
 tab_raw, tab_check, tab_map = st.tabs(["RAW 생성", "데이터 점검", "매핑 관리"])
@@ -276,12 +275,14 @@ with tab_raw:
         with c2:
             saramin_file = st.file_uploader("사람인 원본 (엑셀/CSV/TSV)", type=["xlsx", "xls", "csv", "tsv", "txt"], key="sr")
 
-    st.markdown("**GA 원본 업로드** (선택 — 넣으면 GA4 API 대신 이 파일을 사용)")
-    g1, g2 = st.columns(2)
-    with g1:
-        ga_do_file = st.file_uploader("GA_DO — 다우오피스 (엑셀/CSV/TSV)", type=["xlsx", "xls", "csv", "tsv", "txt"], key="ga_do")
-    with g2:
-        ga_hr_file = st.file_uploader("GA_HR — 다우오피스HR (엑셀/CSV/TSV)", type=["xlsx", "xls", "csv", "tsv", "txt"], key="ga_hr")
+    ga_do_file = ga_hr_file = None
+    if not _ga_api:
+        st.markdown("**GA 원본 업로드** (선택 — 넣으면 GA4 API 대신 이 파일을 사용)")
+        g1, g2 = st.columns(2)
+        with g1:
+            ga_do_file = st.file_uploader("GA_DO — 다우오피스 (엑셀/CSV/TSV)", type=["xlsx", "xls", "csv", "tsv", "txt"], key="ga_do")
+        with g2:
+            ga_hr_file = st.file_uploader("GA_HR — 다우오피스HR (엑셀/CSV/TSV)", type=["xlsx", "xls", "csv", "tsv", "txt"], key="ga_hr")
 
     if st.button("🚀 RAW 생성", type="primary"):
         with st.spinner("취합 + GA 결합 중..."):
