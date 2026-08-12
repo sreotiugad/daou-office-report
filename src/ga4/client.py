@@ -78,10 +78,14 @@ def get_ga_records(source, secrets, since, until, logs=None):
         Dimension(name=s["content_dimension"]),
         Dimension(name="eventName"),
     ]
-    metrics = [Metric(name="conversions")]
+    conv_metric = s.get("conversion_metric", "keyEvents")
+    metrics = [Metric(name=conv_metric)]
     emp_metric = s.get("employee_metric") if source.get("has_emp") else None
     if emp_metric:
         metrics.append(Metric(name=emp_metric))
+
+    # 속성마다 전환(가입) 이벤트 이름이 다름: 소스 설정 우선
+    conv_event = source.get("conversion_event") or s["conversion_event"]
 
     req = RunReportRequest(
         property=f"properties/{str(prop).strip()}",
@@ -91,7 +95,7 @@ def get_ga_records(source, secrets, since, until, logs=None):
         dimension_filter=FilterExpression(
             filter=Filter(
                 field_name="eventName",
-                string_filter=Filter.StringFilter(value=s["conversion_event"]),
+                string_filter=Filter.StringFilter(value=conv_event),
             )
         ),
         limit=100000,

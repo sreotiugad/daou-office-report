@@ -99,9 +99,12 @@ AD_SOURCES = [
 #  GAS 원본은 GA_DO / GA_HR 시트를 읽었으나, 여기서는 GA4 Data API로 직접 조회.
 #  property_secret : secrets.toml 의 GA4 속성 ID 키 이름
 #  has_emp         : 직원수(다우오피스HR 전용) 지표 존재 여부
+#  conversion_event : 각 속성에서 '전환(가입)'으로 세는 키 이벤트 이름 (속성마다 다름)
 GA_SOURCES = [
-    {"sheet": "GA_DO", "brand": "DO", "property_secret": "GA4_PROPERTY_DO", "has_emp": False},
-    {"sheet": "GA_HR", "brand": "HR", "property_secret": "GA4_PROPERTY_HR", "has_emp": True},
+    {"sheet": "GA_DO", "brand": "DO", "property_secret": "GA4_PROPERTY_DO",
+     "has_emp": False, "conversion_event": "lead_submit(ga4)"},
+    {"sheet": "GA_HR", "brand": "HR", "property_secret": "GA4_PROPERTY_HR",
+     "has_emp": True, "conversion_event": "lead_submit"},
 ]
 
 # ── GA4 지표/측정기준 매핑 ──────────────────────────────────
@@ -111,8 +114,9 @@ GA_SOURCES = [
 #  - content_dimension: GAS의 "콘텐츠(광고이름)" 결합키에 대응하는 GA4 측정기준
 #  - medium_dimension : "세션 소스/매체"
 GA4_SETTINGS = {
-    "conversion_event": "sign_up",          # TODO: 실제 키 이벤트명으로 교체
-    "employee_metric": None,                 # TODO: 직원수 커스텀 지표명 (없으면 None)
+    "conversion_event": "lead_submit",       # 소스별 값이 우선(GA_SOURCES.conversion_event)
+    "conversion_metric": "keyEvents",        # 전환 = 주요 이벤트(Key events) 수
+    "employee_metric": None,                 # TODO: 직원수 맞춤 측정항목 API 이름 (없으면 0)
     "content_dimension": "sessionManualAdContent",   # 세션 콘텐츠(utm_content)
     "medium_dimension": "sessionSourceMedium",       # 세션 소스/매체
     "campaign_dimension": "sessionCampaignName",
