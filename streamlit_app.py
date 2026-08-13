@@ -123,22 +123,24 @@ def ad_source(label):
 
 
 # ── xlsx 내보내기 ──────────────────────────────────────────
-def build_xlsx(raw_df, check):
+def build_xlsx(raw_df, check=None):
+    """RAW 시트를 쓰고, check가 있으면 '데이터 점검' 시트도 붙인다."""
     buf = io.BytesIO()
     with pd.ExcelWriter(buf, engine="openpyxl") as writer:
         raw_df.to_excel(writer, sheet_name="RAW", index=False)
         # 데이터 점검 시트: 섹션 제목 + 표를 순서대로 쌓기
-        ws_rows = []
-        for sec in check["sections"]:
-            ws_rows.append([sec["title"]])
-            df = sec["df"]
-            ws_rows.append(list(df.columns))
-            for _, r in df.iterrows():
-                ws_rows.append(list(r))
-            ws_rows.append([])
-        maxw = max((len(r) for r in ws_rows), default=1)
-        norm = [r + [""] * (maxw - len(r)) for r in ws_rows]
-        pd.DataFrame(norm).to_excel(writer, sheet_name="데이터 점검", index=False, header=False)
+        if check is not None:
+            ws_rows = []
+            for sec in check["sections"]:
+                ws_rows.append([sec["title"]])
+                df = sec["df"]
+                ws_rows.append(list(df.columns))
+                for _, r in df.iterrows():
+                    ws_rows.append(list(r))
+                ws_rows.append([])
+            maxw = max((len(r) for r in ws_rows), default=1)
+            norm = [r + [""] * (maxw - len(r)) for r in ws_rows]
+            pd.DataFrame(norm).to_excel(writer, sheet_name="데이터 점검", index=False, header=False)
     buf.seek(0)
     return buf.getvalue()
 
@@ -307,13 +309,31 @@ with tab_raw:
         else:
             st.warning(msg + f" · 점검 확인 항목 {ck['issues']}건 (‘데이터 점검’ 탭 확인)")
 
-        st.download_button(
-            "⬇️ RAW.xlsx 다운로드",
-            data=build_xlsx(res["raw_df"], ck),
+        raw_df = res["raw_df"]
+        do_df = raw_df[raw_df["브랜드"] == "DO"]
+        hr_df = raw_df[raw_df["브랜드"] == "HR"]
+        mime = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+
+        d1, d2, d3 = st.columns(3)
+        d1.download_button(
+            "⬇️ 통합 RAW.xlsx",
+            data=build_xlsx(raw_df, ck),
             file_name=f"다우오피스_RAW_{since:%y%m%d}_{until:%y%m%d}.xlsx",
-            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            mime=mime, use_container_width=True,
         )
-        st.dataframe(res["raw_df"], use_container_width=True, height=520)
+        d2.download_button(
+            f"⬇️ DO만 ({len(do_df)}행)",
+            data=build_xlsx(do_df),
+            file_name=f"다우오피스DO_RAW_{since:%y%m%d}_{until:%y%m%d}.xlsx",
+            mime=mime, use_container_width=True, disabled=do_df.empty,
+        )
+        d3.download_button(
+            f"⬇️ HR만 ({len(hr_df)}행)",
+            data=build_xlsx(hr_df),
+            file_name=f"다우오피스HR_RAW_{since:%y%m%d}_{until:%y%m%d}.xlsx",
+            mime=mime, use_container_width=True, disabled=hr_df.empty,
+        )
+        st.dataframe(raw_df, use_container_width=True, height=520)
 
         with st.expander("실행 로그"):
             st.code("\n".join(res["logs"]) or "(로그 없음)")
