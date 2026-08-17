@@ -38,14 +38,22 @@ def ensure_data_dir():
     os.makedirs(_DATA_DIR, exist_ok=True)
 
 
-def load_table(key):
-    """CSV를 DataFrame으로 로드. 없으면 빈 스키마 반환."""
+def _get_secrets():
+    """Streamlit secrets 를 안전하게 dict 로. (streamlit 밖이면 빈 dict)"""
+    try:
+        import streamlit as st
+        return dict(st.secrets)
+    except Exception:
+        return {}
+
+
+def _local_load(key):
+    """로컬 CSV(= repo 배포 기준값)를 DataFrame 으로. 없으면 빈 스키마."""
     cols = _FILES[key][1]
     p = _path(key)
     if os.path.exists(p):
         try:
             df = pd.read_csv(p, dtype=str).fillna("")
-            # 스키마 정합성 맞추기
             for c in cols:
                 if c not in df.columns:
                     df[c] = ""
@@ -55,15 +63,44 @@ def load_table(key):
     return pd.DataFrame(columns=cols)
 
 
+def storage_kind():
+    """현재 저장소 종류: 'sheet' 또는 'local'."""
+    from . import sheets_store
+    return "sheet" if sheets_store.is_configured(_get_secrets()) else "local"
+
+
+def load_table(key):
+    """매핑표 로드. 시트가 설정돼 있으면 시트, 아니면 로컬 CSV.
+    시트 사용 시 로컬 CSV 는 워크시트가 없을 때의 초기 시드 값으로 쓰인다."""
+    cols = _FILES[key][1]
+    secrets = _get_secrets()
+    from . import sheets_store
+    local = _local_load(key)
+    if sheets_store.is_configured(secrets):
+        try:
+            return sheets_store.read_df(key, cols, secrets, seed_df=local)
+        except Exception:
+            # 시트 접근 실패 시 로컬 값으로 폴백(앱이 죽지 않게)
+            return local
+    return local
+
+
 def save_table(key, df):
-    """DataFrame을 CSV로 저장 (스키마 컬럼만, 문자열로)."""
-    ensure_data_dir()
+    """매핑표 저장. 시트가 설정돼 있으면 시트, 아니면 로컬 CSV."""
     cols = _FILES[key][1]
     out = df.copy()
     for c in cols:
         if c not in out.columns:
             out[c] = ""
     out = out[cols].fillna("").astype(str)
+
+    secrets = _get_secrets()
+    from . import sheets_store
+    if sheets_store.is_configured(secrets):
+        sheets_store.write_df(key, out, cols, secrets)
+        return
+
+    ensure_data_dir()
     out.to_csv(_path(key), index=False, encoding="utf-8-sig")
 
 

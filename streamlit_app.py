@@ -250,6 +250,8 @@ with st.sidebar:
     st.write(("✅ " if meta_ok(SECRETS) else "⚪ ") + "메타 API")
     st.write(("✅ " if naver_ok(SECRETS) else "⚪ ") + "네이버 검색광고 API")
     st.write(("✅ " if ga4_ok(SECRETS) else "⚪ ") + "GA4 Data API")
+    _store_sheet = ms.storage_kind() == "sheet"
+    st.write(("✅ " if _store_sheet else "⚪ ") + "매핑 저장: " + ("구글시트" if _store_sheet else "로컬 CSV"))
 
 
 tab_raw, tab_check, tab_map = st.tabs(["RAW 생성", "데이터 점검", "매핑 관리"])
@@ -361,11 +363,22 @@ with tab_check:
 with tab_map:
     st.subheader("매핑표 관리")
     st.caption("편집 후 ‘저장’을 눌러야 반영됩니다. 엑셀 업로드로 전체 교체도 가능합니다.")
+    if ms.storage_kind() == "sheet":
+        st.success("💾 저장소: **구글시트** — 편집·저장 내용이 영구 보존되고 시트에서 직접 편집해도 반영됩니다.")
+    else:
+        st.warning("💾 저장소: **로컬 CSV** — 배포 환경에서는 재시작 시 초기화됩니다. "
+                   "영구 보존하려면 secrets 에 `MAPPING_SHEET_ID` 를 설정하세요.")
 
     def mapping_editor(key, title, help_text):
         st.markdown(f"### {title}")
         st.caption(help_text)
-        up = st.file_uploader(f"{title} 엑셀/CSV/TSV 업로드(전체 교체)", type=["xlsx", "xls", "csv", "tsv", "txt"], key=f"up_{key}")
+        # 저장할 때마다 ver를 올려 편집기·업로더 위젯을 새로 초기화한다.
+        # (고정 key면 data_editor/file_uploader가 첫 렌더 데이터에 고정돼 저장이 화면에
+        #  반영되지 않고, 업로더에 남은 파일이 매 rerun마다 다시 덮어쓰는 문제가 있음.)
+        ver_key = f"ver_{key}"
+        ver = st.session_state.get(ver_key, 0)
+
+        up = st.file_uploader(f"{title} 엑셀/CSV/TSV 업로드(전체 교체)", type=["xlsx", "xls", "csv", "tsv", "txt"], key=f"up_{key}_{ver}")
         if up is not None:
             try:
                 nm = up.name.lower()
@@ -379,15 +392,23 @@ with tab_map:
                 else:
                     new_df = pd.read_excel(up, dtype=str).fillna("")
                 ms.save_table(key, new_df)
+                st.session_state[ver_key] = ver + 1  # 편집기·업로더 새로고침
                 st.success(f"{title} 업로드 저장 완료")
+                st.rerun()
             except Exception as e:
                 st.error(f"업로드 실패: {e}")
 
         df = ms.load_table(key)
-        edited = st.data_editor(df, num_rows="dynamic", use_container_width=True, key=f"ed_{key}")
+        edited = st.data_editor(df, num_rows="dynamic", use_container_width=True, key=f"ed_{key}_{ver}")
         if st.button(f"💾 {title} 저장", key=f"save_{key}"):
-            ms.save_table(key, edited)
-            st.success(f"{title} 저장 완료")
+            try:
+                ms.save_table(key, edited)
+                st.session_state[ver_key] = ver + 1  # 저장 후 저장소 기준으로 재로딩
+                st.success(f"{title} 저장 완료")
+                st.rerun()
+            except Exception as e:
+                st.error(f"저장 실패: {e}\n\n구글시트 저장소라면 시트를 서비스계정 이메일에 "
+                         "'편집자'로 공유했는지, Sheets API 가 켜져 있는지 확인하세요.")
 
     sub1, sub2, sub3, sub4 = st.tabs(["매체 INDEX", "GA INDEX", "meta 정리", "고정비(브검·사람인)"])
     with sub1:
