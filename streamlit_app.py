@@ -363,11 +363,18 @@ with tab_check:
 with tab_map:
     st.subheader("매핑표 관리")
     st.caption("편집 후 ‘저장’을 눌러야 반영됩니다. 엑셀 업로드로 전체 교체도 가능합니다.")
+    from src import sheets_store as shs
     if ms.storage_kind() == "sheet":
         st.success("💾 저장소: **구글시트** — 편집·저장 내용이 영구 보존되고 시트에서 직접 편집해도 반영됩니다.")
     else:
         st.warning("💾 저장소: **로컬 CSV** — 배포 환경에서는 재시작 시 초기화됩니다. "
                    "영구 보존하려면 secrets 에 `MAPPING_SHEET_ID` 를 설정하세요.")
+
+    dcol1, dcol2 = st.columns([1, 3])
+    if dcol1.button("🔌 시트 연결 진단"):
+        ok, msg = shs.diagnose(SECRETS)
+        (st.success if ok else st.error)(msg)
+    dcol2.caption("‘저장 실패’가 뜨면 이 버튼으로 원인과 공유할 서비스계정 이메일을 확인하세요.")
 
     def mapping_editor(key, title, help_text):
         st.markdown(f"### {title}")

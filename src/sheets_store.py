@@ -83,6 +83,29 @@ except Exception:  # streamlit 밖(테스트 등)에서는 캐시 없이
     _fetch_values_cached = _fetch_values
 
 
+def diagnose(secrets):
+    """시트 연결 상태를 실제로 확인. (ok: bool, message: str)"""
+    if not secrets.get("GA4_SERVICE_ACCOUNT_JSON"):
+        return False, "서비스계정 JSON(GA4_SERVICE_ACCOUNT_JSON) 이 secrets 에 없습니다."
+    if not secrets.get("MAPPING_SHEET_ID"):
+        return False, "MAPPING_SHEET_ID 가 secrets 에 없습니다 → 로컬 CSV 로 동작 중."
+    try:
+        info = _sa_info(secrets)
+        email = (info or {}).get("client_email", "(알수없음)")
+    except Exception as e:
+        return False, f"서비스계정 JSON 파싱 실패: {e}"
+    try:
+        sh = _open(secrets)
+        titles = [ws.title for ws in sh.worksheets()]
+        return True, (f"연결 OK · 시트명='{sh.title}' · 워크시트={titles or '(없음)'}\n"
+                      f"서비스계정: {email}")
+    except Exception as e:
+        return False, (f"{type(e).__name__}: {e}\n"
+                       f"→ 이 시트를 서비스계정 이메일에 '편집자'로 공유했는지 확인하세요.\n"
+                       f"   공유할 이메일: {email}\n"
+                       f"→ Google Sheets API 가 켜져 있는지도 확인하세요.")
+
+
 def read_df(key, cols, secrets, seed_df=None):
     """시트에서 표를 읽어 DataFrame 으로. 워크시트가 없으면 생성 후 seed_df 로 시드."""
     sheet_id = str(secrets["MAPPING_SHEET_ID"]).strip()
