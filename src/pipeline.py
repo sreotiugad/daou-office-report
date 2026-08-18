@@ -27,6 +27,7 @@ def new_stats():
         "gaByGroup": {},
         "leftoverRows": 0, "leftoverConv": 0, "leftoverEmp": 0,
         "dupKeys": 0, "dupRows": 0, "brandOverride": 0,
+        "bsFilled": 0, "bsAdded": 0, "bsCostDelta": 0,
     }
 
 
@@ -308,6 +309,7 @@ def apply_brand_search(rows, contracts, since, until, stats):
         return rows
     added = 0
     filled = 0
+    cost_delta = 0  # 고정비가 RAW 광고비 합계에 더한 순증가분(점검 대사용)
     for c in contracts:
         lo = max(c["since"], since) if c["since"] else since
         hi = min(c["until"], until) if c["until"] else until
@@ -332,6 +334,7 @@ def apply_brand_search(rows, contracts, since, until, stats):
                 found = r
                 break
             if found is not None:
+                cost_delta += fee - to_num(found[10])  # 기존 광고비를 계약비로 대체
                 found[10] = fee
                 filled += 1
             else:
@@ -340,9 +343,11 @@ def apply_brand_search(rows, contracts, since, until, stats):
                     c["campaign"], c["adGroup"], c["adName"],
                     0, 0, fee, 0, 0, 0, 0,
                 ])
+                cost_delta += fee  # 새 행으로 추가된 계약비
                 added += 1
     stats["bsFilled"] = filled
     stats["bsAdded"] = added
+    stats["bsCostDelta"] = cost_delta
     return rows
 
 

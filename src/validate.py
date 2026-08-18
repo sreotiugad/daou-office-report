@@ -54,18 +54,26 @@ def build_check_report(stats, meta_map, all_rows):
     add("1. 광고 데이터 (원본 → RAW)", df1, sec1_ok)
 
     # ── 2. 광고 지표 합계 ──
+    #  광고비는 이미 ×1.1(부가세)이 적용된 값끼리 비교한다(원본 집계·RAW 모두 적용됨).
+    #  다만 고정비(브랜드검색·사람인 계약)는 RAW 에만 가산되므로, 그 순증가분을
+    #  '합계'에 더해 대사한다. (bsCostDelta)
     rows2 = []
     sum_imp = sum_click = sum_cost = 0
     for s in stats["ad"]:
         sum_imp += s["imp"]; sum_click += s["click"]; sum_cost += s["cost"]
         rows2.append([s["label"], s["imp"], s["click"], round(s["cost"]),
                       "-" if s["multiplier"] == 1 else f"× {s['multiplier']}"])
-    rows2.append(["합계", sum_imp, sum_click, round(sum_cost), ""])
-    imp_ok = (raw_imp == sum_imp and raw_click == sum_click and round(raw_cost) == round(sum_cost))
+    rows2.append(["합계(광고원본)", sum_imp, sum_click, round(sum_cost), ""])
+    bs_delta = stats.get("bsCostDelta", 0)
+    expect_cost = sum_cost + bs_delta
+    if bs_delta:
+        rows2.append(["＋고정비(브검·사람인 계약)", "", "", round(bs_delta), "계약비 가산"])
+        rows2.append(["기대 합계(광고+고정비)", sum_imp, sum_click, round(expect_cost), ""])
+    imp_ok = (raw_imp == sum_imp and raw_click == sum_click and round(raw_cost) == round(expect_cost))
     rows2.append(["RAW 시트 합계", raw_imp, raw_click, round(raw_cost),
                   "✅ 일치" if imp_ok else "❌ 불일치"])
     df2 = pd.DataFrame(rows2, columns=["매체", "노출 합계", "클릭 합계", "광고비 합계", "비고/상태"])
-    add("2. 광고 지표 합계 (원본 = RAW 여야 정상)", df2, imp_ok)
+    add("2. 광고 지표 합계 (광고원본＋고정비 = RAW 여야 정상)", df2, imp_ok)
 
     # 그룹 키 합치기
     group_keys = set(stats["gaByGroup"].keys()) | set(raw_by_group.keys())
