@@ -50,6 +50,7 @@ AD_SOURCES = [
         "label": "네이버",
         "kind": "upload",
         "device": None,          # 원본에서 읽음
+        "costMultiplier": 1 / 1.1,  # 네이버 총비용은 VAT 포함 → ÷1.1 로 VAT 제외
         "col": {
             "device":   ["PC/모바일 매체", "PC/모바일", "디바이스", "기기", "매체(광고상품)", "pcMblTp"],
             "date":     ["일별", "날짜", "일자", "기간", "statDt"],

@@ -57,12 +57,19 @@ def build_check_report(stats, meta_map, all_rows):
     #  광고비는 이미 ×1.1(부가세)이 적용된 값끼리 비교한다(원본 집계·RAW 모두 적용됨).
     #  다만 고정비(브랜드검색·사람인 계약)는 RAW 에만 가산되므로, 그 순증가분을
     #  '합계'에 더해 대사한다. (bsCostDelta)
+    def _mult_label(m):
+        if m == 1:
+            return "-"
+        if m > 1:
+            return f"× {m:g}"
+        return f"÷ {1 / m:g}"  # 0.909… → '÷ 1.1'
+
     rows2 = []
     sum_imp = sum_click = sum_cost = 0
     for s in stats["ad"]:
         sum_imp += s["imp"]; sum_click += s["click"]; sum_cost += s["cost"]
         rows2.append([s["label"], s["imp"], s["click"], round(s["cost"]),
-                      "-" if s["multiplier"] == 1 else f"× {s['multiplier']}"])
+                      _mult_label(s["multiplier"])])
     rows2.append(["합계(광고원본)", sum_imp, sum_click, round(sum_cost), ""])
     bs_delta = stats.get("bsCostDelta", 0)
     expect_cost = sum_cost + bs_delta
