@@ -51,7 +51,8 @@ AD_SOURCES = [
         "kind": "upload",
         "device": None,          # 원본에서 읽음
         "costMultiplier": 1 / 1.1,  # 네이버 총비용은 VAT 포함 → ÷1.1 로 VAT 제외
-        "gaJoinLevel": "adGroup",   # GA utm_content 가 '광고그룹' 레벨로 오므로 그룹으로 결합
+        "gaGroupFallback": True,    # 키워드로 못 붙은 GA 전환은 '광고그룹'명으로 폴백 결합
+                                    # (DO=키워드 태깅, HR=일부 그룹명 태깅 혼재 → 둘 다 살림)
         "col": {
             "device":   ["PC/모바일 매체", "PC/모바일", "디바이스", "기기", "매체(광고상품)", "pcMblTp"],
             "date":     ["일별", "날짜", "일자", "기간", "statDt"],

@@ -129,7 +129,8 @@ def build_ga_maps(ga_data, ga_index, stats, since=None, until=None):
 # ── 8. 광고 소스 → RAW 행 (1단계) ──────────────────────────
 def build_ad_rows(ad_data, media_index, meta_map, stats, since=None, until=None):
     rows = []
-    key_groups = {}
+    key_groups = {}       # 1차: 광고이름(키워드)/메타콘텐츠 단위
+    group_groups = {}     # 2차 폴백: 광고그룹 단위 (gaGroupFallback 소스만)
 
     for entry in ad_data:
         src = entry["source"]
@@ -141,7 +142,7 @@ def build_ad_rows(ad_data, media_index, meta_map, stats, since=None, until=None)
         stats["ad"].append(st)
 
         use_meta = src.get("useMetaMap", False)
-        ga_join_level = src.get("gaJoinLevel")  # None(기본=광고이름) 또는 "adGroup"
+        ga_group_fallback = bool(src.get("gaGroupFallback"))  # 키워드 미매칭 시 광고그룹으로 폴백
         filter_kw = src.get("filterKeyword")
         fixed_device = src.get("device")
         multiplier = src.get("costMultiplier")
@@ -180,7 +181,7 @@ def build_ad_rows(ad_data, media_index, meta_map, stats, since=None, until=None)
             device_raw = fixed_device if isinstance(fixed_device, str) else rec.get("device_raw")
             device = normalize_device(device_raw)
 
-            # GA 결합용 콘텐츠 결정
+            # GA 결합용 콘텐츠 결정 (기본=광고이름/키워드, 메타는 meta_map)
             join_content = ad_name
             if use_meta:
                 mk = make_meta_key(campaign, ad_group, ad_name)
@@ -190,10 +191,6 @@ def build_ad_rows(ad_data, media_index, meta_map, stats, since=None, until=None)
                     join_content = ""
                     st["metaMiss"] += 1
                     stats["metaMissList"][campaign + "\t" + ad_group + "\t" + ad_name] = True
-            elif ga_join_level == "adGroup":
-                # 네이버: GA utm_content 가 광고그룹명으로 오므로 그룹 단위로 결합.
-                # (한 그룹의 여러 키워드 행은 DUP_MODE 규칙으로 전환 배분)
-                join_content = ad_group
 
             imp = to_num(rec.get("imp"))
             click = to_num(rec.get("click"))
@@ -223,51 +220,62 @@ def build_ad_rows(ad_data, media_index, meta_map, stats, since=None, until=None)
             if join_content and ymd:
                 jk = make_join_key(brand, gubun, src["label"], device, ymd, join_content)
                 key_groups.setdefault(jk, []).append({"i": row_idx, "click": click})
+            # 광고그룹 폴백 키 (키워드로 못 붙은 GA 전환을 그룹으로 붙이기 위함)
+            if ga_group_fallback and ad_group and ymd:
+                gjk = make_join_key(brand, gubun, src["label"], device, ymd, ad_group)
+                group_groups.setdefault(gjk, []).append({"i": row_idx, "click": click})
 
-    return {"rows": rows, "keyGroups": key_groups}
+    return {"rows": rows, "keyGroups": key_groups, "groupGroups": group_groups}
 
 
 # ── 9. GA 전환 배분 (2단계) ────────────────────────────────
-def assign_ga_to_ad_rows(rows, key_groups, ga_maps, used_keys, stats):
+def _distribute(rows, group, conv, emp, stats):
+    """한 결합키에 걸린 광고행들에 전환/직원수를 DUP_MODE로 배분(가산)."""
+    if len(group) == 1:
+        rows[group[0]["i"]][13] += conv
+        rows[group[0]["i"]][14] += emp
+        return
+    stats["dupKeys"] += 1
+    stats["dupRows"] += len(group)
+    if DUP_MODE == "all":
+        for gitem in group:
+            rows[gitem["i"]][13] += conv
+            rows[gitem["i"]][14] += emp
+    elif DUP_MODE == "split":
+        total_click = sum(g["click"] for g in group)
+        if total_click > 0:
+            for gitem in group:
+                rows[gitem["i"]][13] += conv * gitem["click"] / total_click
+                rows[gitem["i"]][14] += emp * gitem["click"] / total_click
+        else:
+            for gitem in group:
+                rows[gitem["i"]][13] += conv / len(group)
+                rows[gitem["i"]][14] += emp / len(group)
+    else:  # top_click
+        best = group[0]
+        for gitem in group:
+            if gitem["click"] > best["click"]:
+                best = gitem
+        rows[best["i"]][13] += conv
+        rows[best["i"]][14] += emp
+
+
+def assign_ga_to_ad_rows(rows, key_groups, ga_maps, used_keys, stats, group_groups=None):
+    """GA 전환을 광고행에 결합. 1차: 광고이름(키워드), 2차: 광고그룹 폴백.
+    각 GA 결합키는 한 번만(키워드 우선) 배분되므로 전환 중복 계상 없음."""
     conv_map = ga_maps["convMap"]
     emp_map = ga_maps["empMap"]
+    group_groups = group_groups or {}
 
-    for jk, group in key_groups.items():
-        if jk not in conv_map:
-            continue
+    for jk in conv_map:
         conv = conv_map[jk]
         emp = emp_map.get(jk, 0)
-        used_keys[jk] = True
-
-        if len(group) == 1:
-            rows[group[0]["i"]][13] = conv
-            rows[group[0]["i"]][14] = emp
-            continue
-
-        stats["dupKeys"] += 1
-        stats["dupRows"] += len(group)
-
-        if DUP_MODE == "all":
-            for gitem in group:
-                rows[gitem["i"]][13] = conv
-                rows[gitem["i"]][14] = emp
-        elif DUP_MODE == "split":
-            total_click = sum(g["click"] for g in group)
-            if total_click > 0:
-                for gitem in group:
-                    rows[gitem["i"]][13] = conv * gitem["click"] / total_click
-                    rows[gitem["i"]][14] = emp * gitem["click"] / total_click
-            else:
-                for gitem in group:
-                    rows[gitem["i"]][13] = conv / len(group)
-                    rows[gitem["i"]][14] = emp / len(group)
-        else:  # top_click
-            best = group[0]
-            for gitem in group:
-                if gitem["click"] > best["click"]:
-                    best = gitem
-            rows[best["i"]][13] = conv
-            rows[best["i"]][14] = emp
+        if jk in key_groups:                 # 1차: 키워드/메타 콘텐츠
+            used_keys[jk] = True
+            _distribute(rows, key_groups[jk], conv, emp, stats)
+        elif jk in group_groups:             # 2차: 광고그룹명으로 폴백
+            used_keys[jk] = True
+            _distribute(rows, group_groups[jk], conv, emp, stats)
 
 
 # ── 10. 미매칭 GA → 하단 추가 행 ───────────────────────────
@@ -363,7 +371,8 @@ def run_pipeline(ad_data, ga_data, media_index, ga_index, meta_map,
     ga_maps = build_ga_maps(ga_data, ga_index, stats, since, until)
     built = build_ad_rows(ad_data, media_index, meta_map, stats, since, until)
     used_keys = {}
-    assign_ga_to_ad_rows(built["rows"], built["keyGroups"], ga_maps, used_keys, stats)
+    assign_ga_to_ad_rows(built["rows"], built["keyGroups"], ga_maps, used_keys, stats,
+                         group_groups=built.get("groupGroups"))
     # 브랜드검색 고정비는 광고 행에 채운다(레프트오버 합류 전).
     apply_brand_search(built["rows"], brand_search or [], since, until, stats)
     leftover = build_leftover_ga_rows(ga_maps, used_keys, stats)
