@@ -22,12 +22,14 @@ _GA_CANDS = {
                  "session campaign", "sessioncampaignname", "세션 캠페인명"],
     "content":  ["세션 수동 광고 콘텐츠", "수동 광고 콘텐츠", "광고 콘텐츠", "콘텐츠",
                  "session manual ad content", "sessionmanualadcontent", "광고콘텐츠"],
+    "term":     ["세션 수동 검색어", "수동 검색어", "세션 검색어", "검색어", "키워드",
+                 "session manual term", "sessionmanualterm", "term"],
     "conv":     ["전환", "전환수", "세션 전환", "주요 이벤트", "핵심 이벤트", "이벤트 수",
                  "conversions", "가입", "sign_up", "key events", "전환 수"],
     "emp":      ["직원수", "직원 수", "employees", "employee", "직원"],
 }
 
-_FIELDS = ["date", "medium", "campaign", "content", "conv", "emp"]
+_FIELDS = ["date", "medium", "campaign", "content", "term", "conv", "emp"]
 
 # GAS 원본은 GA 데이터를 무조건 9행(1-based)부터 읽는다(dataStart=9 → 0-based 8).
 # 이 고정 시작 때문에 HR은 합계(Grand total)행이 제외되고(원본=실제),
@@ -181,6 +183,7 @@ def parse_ga_upload(file, source, logs=None):
             "medium": medium,
             "campaign": to_str(cell(row, "campaign")),
             "content": to_str(cell(row, "content")),
+            "term": to_str(cell(row, "term")),
             "conv": conv,
             "emp": emp,
         })

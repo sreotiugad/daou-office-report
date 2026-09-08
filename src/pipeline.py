@@ -92,8 +92,15 @@ def build_ga_maps(ga_data, ga_index, stats, since=None, until=None):
             media = gi["media"] if gi else UNCLASSIFIED
             device = gi["device"] if gi else ""
 
+            # 결합값 선택: 검색(SA)은 키워드가 term(utm_term)에 담기므로 term 우선,
+            # 없으면 content. 그 외(DA 등)는 content(utm_content=소재).
             content = to_str(row.get("content"))
-            matchable = content not in GA_SKIP_CONTENT
+            term = to_str(row.get("term"))
+            if gubun == "SA" and term and term not in GA_SKIP_CONTENT:
+                join_val = term
+            else:
+                join_val = content
+            matchable = join_val not in GA_SKIP_CONTENT
             if not matchable:
                 st["notsetConv"] += conv
                 st["notsetEmp"] += emp
@@ -106,7 +113,7 @@ def build_ga_maps(ga_data, ga_index, stats, since=None, until=None):
                 g["noset"] += conv
                 g["empNoset"] += emp
 
-            jk = make_join_key(src["brand"], gubun, media, device, ymd, content)
+            jk = make_join_key(src["brand"], gubun, media, device, ymd, join_val)
 
             if matchable:
                 conv_map[jk] = conv_map.get(jk, 0) + conv
@@ -116,7 +123,7 @@ def build_ga_maps(ga_data, ga_index, stats, since=None, until=None):
             if d is None:
                 d = detail[jk] = {
                     "brand": src["brand"], "gubun": gubun, "media": media, "device": device,
-                    "ymd": ymd, "content": content, "medium": medium_raw,
+                    "ymd": ymd, "content": join_val, "medium": medium_raw,
                     "campaign": to_str(row.get("campaign")),
                     "joinKey": jk, "matchable": matchable, "conv": 0, "emp": 0,
                 }

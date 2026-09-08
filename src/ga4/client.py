@@ -72,11 +72,12 @@ def get_ga_records(source, secrets, since, until, logs=None):
 
     s = GA4_SETTINGS
     dims = [
-        Dimension(name=s["date_dimension"]),
-        Dimension(name=s["medium_dimension"]),
-        Dimension(name=s["campaign_dimension"]),
-        Dimension(name=s["content_dimension"]),
-        Dimension(name="eventName"),
+        Dimension(name=s["date_dimension"]),          # 0
+        Dimension(name=s["medium_dimension"]),        # 1
+        Dimension(name=s["campaign_dimension"]),      # 2
+        Dimension(name=s["content_dimension"]),       # 3 utm_content(DA 결합)
+        Dimension(name=s["term_dimension"]),          # 4 utm_term(SA 결합=키워드)
+        Dimension(name="eventName"),                  # 5
     ]
     conv_metric = s.get("conversion_metric", "keyEvents")
     metrics = [Metric(name=conv_metric)]
@@ -121,6 +122,7 @@ def get_ga_records(source, secrets, since, until, logs=None):
             "medium": to_str(dv[1]),
             "campaign": to_str(dv[2]),
             "content": to_str(dv[3]),
+            "term": to_str(dv[4]),
             "conv": conv,
             "emp": emp,
         })

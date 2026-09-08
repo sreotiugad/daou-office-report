@@ -123,7 +123,8 @@ GA4_SETTINGS = {
     "conversion_metric": "keyEvents",        # 전환 = 주요 이벤트(Key events) 수
     # 직원수 = 사용자 범위 맞춤 측정기준(dimension). 값(숫자)을 행별로 합산.
     "employee_dimension": "customUser:employee_size",
-    "content_dimension": "sessionManualAdContent",   # 세션 콘텐츠(utm_content)
+    "content_dimension": "sessionManualAdContent",   # 세션 콘텐츠(utm_content) — DA 결합키
+    "term_dimension": "sessionManualTerm",           # 세션 검색어(utm_term) — SA 결합키(키워드)
     "medium_dimension": "sessionSourceMedium",       # 세션 소스/매체
     "campaign_dimension": "sessionCampaignName",
     "date_dimension": "date",
