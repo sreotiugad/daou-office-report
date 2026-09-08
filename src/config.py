@@ -71,6 +71,8 @@ AD_SOURCES = [
         "kind": "api",
         "device": None,          # API segments.device
         "costMultiplier": 1.1,   # 부가세 포함 (광고비 × 1.1)
+        "gaGroupFallback": True,  # 키워드로 못 붙은 GA 전환은 '광고그룹'명으로 폴백
+                                  # (8월경 구글 추적템플릿이 키워드→그룹레벨로 바뀜)
     },
     {
         "label": "메타",
