@@ -141,6 +141,7 @@ def build_ad_rows(ad_data, media_index, meta_map, stats, since=None, until=None)
         stats["ad"].append(st)
 
         use_meta = src.get("useMetaMap", False)
+        ga_join_level = src.get("gaJoinLevel")  # None(기본=광고이름) 또는 "adGroup"
         filter_kw = src.get("filterKeyword")
         fixed_device = src.get("device")
         multiplier = src.get("costMultiplier")
@@ -189,6 +190,10 @@ def build_ad_rows(ad_data, media_index, meta_map, stats, since=None, until=None)
                     join_content = ""
                     st["metaMiss"] += 1
                     stats["metaMissList"][campaign + "\t" + ad_group + "\t" + ad_name] = True
+            elif ga_join_level == "adGroup":
+                # 네이버: GA utm_content 가 광고그룹명으로 오므로 그룹 단위로 결합.
+                # (한 그룹의 여러 키워드 행은 DUP_MODE 규칙으로 전환 배분)
+                join_content = ad_group
 
             imp = to_num(rec.get("imp"))
             click = to_num(rec.get("click"))
