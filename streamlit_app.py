@@ -18,7 +18,8 @@ from src import mapping_store as ms
 from src.sources.google_ads import get_google_rows, is_configured as google_ok
 from src.sources.meta_ads import get_meta_rows, is_configured as meta_ok
 from src.sources.openai_ads import get_openai_rows, is_configured as openai_ok
-from src.sources.upload import parse_upload
+from src.sources.upload import parse_upload, merge_uploads
+from src.sources.saramin_sheet import get_saramin_sheet_rows
 from src.sources.ga_upload import parse_ga_upload
 from src.sources.naver_api import get_naver_api_rows, is_configured as naver_ok
 from src.ga4.client import get_ga_records, is_configured as ga4_ok
@@ -172,9 +173,20 @@ def run_generation(since, until, naver_file, saramin_file, ga_files=None):
     o_recs, logs = get_openai_rows(since, until, SECRETS, logs)
     ad_data.append({"source": ad_source("ChatGPT"), "records": o_recs, "found": openai_ok(SECRETS)})
 
-    # 사람인 (업로드)
-    sr_recs, logs = parse_upload(saramin_file, ad_source("사람인")["col"], logs) if saramin_file else ([], logs)
-    ad_data.append({"source": ad_source("사람인"), "records": sr_recs, "found": saramin_file is not None})
+    # 사람인 : 업로드 파일이 있으면 업로드, 없으면 메일 자동 적재 탭(saramin_raw)
+    #  (업로드는 여러 파일 가능 — 월을 걸친 주는 1일자 보고서 + 월요일 보고서를 같이)
+    saramin_files = saramin_file if isinstance(saramin_file, list) else ([saramin_file] if saramin_file else [])
+    saramin_warn = None
+    if saramin_files:
+        sr_recs, logs = merge_uploads(saramin_files, ad_source("사람인")["col"], logs)
+        sr_found = True
+    else:
+        sr_recs, logs, sr_info = get_saramin_sheet_rows(since, until, SECRETS, logs)
+        sr_found = sr_info["found"]
+        if sr_found and sr_info["missing"]:
+            saramin_warn = (f"사람인 메일 적재 데이터에 없는 날짜가 있어요: {', '.join(sr_info['missing'])} "
+                            f"(데이터 ~{sr_info['maxDate']}). 보고서 메일이 아직 안 왔거나 적재 전일 수 있어요.")
+    ad_data.append({"source": ad_source("사람인"), "records": sr_recs, "found": sr_found})
 
     # GA 파일 자동 판별: 슬롯이 바뀌어 올라와도 내용(직원수 컬럼=HR)으로 브랜드에 맞춘다.
     from src.sources.ga_upload import detect_brand
@@ -214,6 +226,7 @@ def run_generation(since, until, naver_file, saramin_file, ga_files=None):
     return {
         "raw_df": raw_df, "check": check, "logs": logs,
         "adRowCount": result["adRowCount"], "leftoverCount": result["leftoverCount"],
+        "saramin_warn": saramin_warn,
     }
 
 
@@ -269,7 +282,7 @@ with tab_raw:
     _ga_api = ga4_ok(SECRETS)
     st.caption(
         ("네이버 " + ("API" if _naver_api else "업로드"))
-        + " · 사람인 업로드 · 구글·메타·ChatGPT API · GA "
+        + " · 사람인 메일 자동(업로드 시 업로드 우선) · 구글·메타·ChatGPT API · GA "
         + ("API" if _ga_api else "업로드")
     )
 
@@ -277,13 +290,13 @@ with tab_raw:
     if _naver_api:
         c1 = st.container()
         with c1:
-            saramin_file = st.file_uploader("사람인 원본 (엑셀/CSV/TSV)", type=["xlsx", "xls", "csv", "tsv", "txt"], key="sr")
+            saramin_file = st.file_uploader("사람인 원본 (선택 · 비우면 메일 자동 적재 사용 · 여러 개 가능)", type=["xlsx", "xls", "csv", "tsv", "txt"], key="sr", accept_multiple_files=True)
     else:
         c1, c2 = st.columns(2)
         with c1:
             naver_file = st.file_uploader("네이버 원본 (엑셀/CSV/TSV)", type=["xlsx", "xls", "csv", "tsv", "txt"], key="nv")
         with c2:
-            saramin_file = st.file_uploader("사람인 원본 (엑셀/CSV/TSV)", type=["xlsx", "xls", "csv", "tsv", "txt"], key="sr")
+            saramin_file = st.file_uploader("사람인 원본 (선택 · 비우면 메일 자동 적재 사용 · 여러 개 가능)", type=["xlsx", "xls", "csv", "tsv", "txt"], key="sr", accept_multiple_files=True)
 
     ga_do_file = ga_hr_file = None
     if not _ga_api:
@@ -316,6 +329,8 @@ with tab_raw:
             st.success(msg + " · 점검 이상 없음")
         else:
             st.warning(msg + f" · 점검 확인 항목 {ck['issues']}건 (‘데이터 점검’ 탭 확인)")
+        if res.get("saramin_warn"):
+            st.warning("📭 " + res["saramin_warn"])
 
         raw_df = res["raw_df"]
         do_df = raw_df[raw_df["브랜드"] == "DO"]

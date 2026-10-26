@@ -106,6 +106,13 @@ def diagnose(secrets):
                        f"→ Google Sheets API 가 켜져 있는지도 확인하세요.")
 
 
+def read_values(title, secrets):
+    """워크시트 값을 그대로(list[list]). 워크시트가 없으면 None — 생성·시드하지 않는다.
+    (사람인 메일 자동 적재 탭처럼 앱 밖에서 채우는 탭 읽기용)"""
+    sheet_id = str(secrets["MAPPING_SHEET_ID"]).strip()
+    return _fetch_values_cached(sheet_id, title)
+
+
 def read_df(key, cols, secrets, seed_df=None):
     """시트에서 표를 읽어 DataFrame 으로. 워크시트가 없으면 생성 후 seed_df 로 시드."""
     sheet_id = str(secrets["MAPPING_SHEET_ID"]).strip()
