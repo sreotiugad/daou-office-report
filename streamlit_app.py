@@ -18,7 +18,7 @@ from src import mapping_store as ms
 from src.sources.google_ads import get_google_rows, is_configured as google_ok
 from src.sources.meta_ads import get_meta_rows, is_configured as meta_ok
 from src.sources.openai_ads import get_openai_rows, is_configured as openai_ok
-from src.sources.upload import parse_upload
+from src.sources.upload import parse_upload, merge_uploads
 from src.sources.ga_upload import parse_ga_upload
 from src.sources.naver_api import get_naver_api_rows, is_configured as naver_ok
 from src.ga4.client import get_ga_records, is_configured as ga4_ok
@@ -173,8 +173,10 @@ def run_generation(since, until, naver_file, saramin_file, ga_files=None):
     ad_data.append({"source": ad_source("ChatGPT"), "records": o_recs, "found": openai_ok(SECRETS)})
 
     # 사람인 (업로드)
-    sr_recs, logs = parse_upload(saramin_file, ad_source("사람인")["col"], logs) if saramin_file else ([], logs)
-    ad_data.append({"source": ad_source("사람인"), "records": sr_recs, "found": saramin_file is not None})
+    #  (여러 파일 가능 — 월을 걸친 주는 1일자 보고서 + 월요일 보고서를 같이)
+    saramin_files = saramin_file if isinstance(saramin_file, list) else ([saramin_file] if saramin_file else [])
+    sr_recs, logs = merge_uploads(saramin_files, ad_source("사람인")["col"], logs)
+    ad_data.append({"source": ad_source("사람인"), "records": sr_recs, "found": bool(saramin_files)})
 
     # GA 파일 자동 판별: 슬롯이 바뀌어 올라와도 내용(직원수 컬럼=HR)으로 브랜드에 맞춘다.
     from src.sources.ga_upload import detect_brand
@@ -277,13 +279,13 @@ with tab_raw:
     if _naver_api:
         c1 = st.container()
         with c1:
-            saramin_file = st.file_uploader("사람인 원본 (엑셀/CSV/TSV)", type=["xlsx", "xls", "csv", "tsv", "txt"], key="sr")
+            saramin_file = st.file_uploader("사람인 원본 (엑셀/CSV/TSV · 여러 개 가능)", type=["xlsx", "xls", "csv", "tsv", "txt"], key="sr", accept_multiple_files=True)
     else:
         c1, c2 = st.columns(2)
         with c1:
             naver_file = st.file_uploader("네이버 원본 (엑셀/CSV/TSV)", type=["xlsx", "xls", "csv", "tsv", "txt"], key="nv")
         with c2:
-            saramin_file = st.file_uploader("사람인 원본 (엑셀/CSV/TSV)", type=["xlsx", "xls", "csv", "tsv", "txt"], key="sr")
+            saramin_file = st.file_uploader("사람인 원본 (엑셀/CSV/TSV · 여러 개 가능)", type=["xlsx", "xls", "csv", "tsv", "txt"], key="sr", accept_multiple_files=True)
 
     ga_do_file = ga_hr_file = None
     if not _ga_api:

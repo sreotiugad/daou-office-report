@@ -137,10 +137,17 @@ def parse_upload(file, col_spec, logs=None):
         return row[idx]
 
     records = []
+    skipped_period = 0
     for _, r in raw.iloc[hrow + 1:].iterrows():
         row = r.tolist()
         campaign = to_str(cell(row, "campaign"))
-        ymd = normalize_date(cell(row, "date"))
+        date_raw = to_str(cell(row, "date"))
+        # 사람인 보고서는 일별 행 아래에 '합계' 행과 광고별 기간합계 행
+        # (일자 = "2026-10-01~2026-10-18")이 붙는다. 일별 행과 중복되므로 제외.
+        if "~" in date_raw or campaign == "합계" or to_str(row[0]) == "합계":
+            skipped_period += 1
+            continue
+        ymd = normalize_date(date_raw)
         if not campaign and not ymd:
             continue
         records.append({
@@ -155,5 +162,26 @@ def parse_upload(file, col_spec, logs=None):
             "rank": to_num(cell(row, "rank")),
             "view": to_num(cell(row, "view")),
         })
-    logs.append(f"✅ 업로드 파싱 완료: {len(records)}행 (헤더행={hrow})")
+    msg = f"✅ 업로드 파싱 완료: {len(records)}행 (헤더행={hrow})"
+    if skipped_period:
+        msg += f" · 합계/기간합계 행 {skipped_period}개 제외"
+    logs.append(msg)
     return records, logs
+
+
+def merge_uploads(files, col_spec, logs=None):
+    """여러 업로드 파일을 파싱해 합친다. 같은 (캠페인·광고그룹·광고·일자) 행은
+    파일명 순서상 뒤 파일(=더 최근 보고서) 값으로 덮어쓴다.
+    사람인 보고서는 '월초~어제' 누적이라, 월을 걸친 주는
+    1일자 보고서(전월 전체) + 월요일 보고서(당월)를 같이 올리면 된다."""
+    if logs is None:
+        logs = []
+    merged = {}
+    for f in sorted(files or [], key=lambda x: getattr(x, "name", str(x))):
+        recs, logs = parse_upload(f, col_spec, logs)
+        for rec in recs:
+            key = (rec["campaign"], rec["adGroup"], rec["adName"], rec["date"])
+            merged[key] = rec
+    if len(files or []) > 1:
+        logs.append(f"✅ 업로드 {len(files)}개 병합: {len(merged)}행 (중복 일자는 최신 파일 기준)")
+    return list(merged.values()), logs
