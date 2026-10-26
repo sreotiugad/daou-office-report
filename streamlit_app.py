@@ -249,11 +249,9 @@ def _preset_lastweek():
 # ── 사이드바 ───────────────────────────────────────────────
 with st.sidebar:
     st.header("📊 다우오피스 리포트")
-    today = date.today()
-    if "since_date" not in st.session_state:
-        st.session_state["since_date"] = today - timedelta(days=14)
-    if "until_date" not in st.session_state:
-        st.session_state["until_date"] = today - timedelta(days=1)
+    # 기본 기간 = 최근 7일 (어제까지 7일, '최근 7일' 버튼과 동일)
+    if "since_date" not in st.session_state or "until_date" not in st.session_state:
+        _preset_last7()
 
     since = st.date_input("시작일", key="since_date")
     until = st.date_input("종료일", key="until_date")
