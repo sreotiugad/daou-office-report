@@ -17,6 +17,7 @@ from src.config import RAW_HEADERS, AD_SOURCES, GA_SOURCES
 from src import mapping_store as ms
 from src.sources.google_ads import get_google_rows, is_configured as google_ok
 from src.sources.meta_ads import get_meta_rows, is_configured as meta_ok
+from src.sources.openai_ads import get_openai_rows, is_configured as openai_ok
 from src.sources.upload import parse_upload
 from src.sources.ga_upload import parse_ga_upload
 from src.sources.naver_api import get_naver_api_rows, is_configured as naver_ok
@@ -167,6 +168,10 @@ def run_generation(since, until, naver_file, saramin_file, ga_files=None):
     m_recs, logs = get_meta_rows(since, until, SECRETS, logs)
     ad_data.append({"source": ad_source("메타"), "records": m_recs, "found": meta_ok(SECRETS)})
 
+    # ChatGPT (API)
+    o_recs, logs = get_openai_rows(since, until, SECRETS, logs)
+    ad_data.append({"source": ad_source("ChatGPT"), "records": o_recs, "found": openai_ok(SECRETS)})
+
     # 사람인 (업로드)
     sr_recs, logs = parse_upload(saramin_file, ad_source("사람인")["col"], logs) if saramin_file else ([], logs)
     ad_data.append({"source": ad_source("사람인"), "records": sr_recs, "found": saramin_file is not None})
@@ -248,6 +253,7 @@ with st.sidebar:
     st.caption("연동 상태")
     st.write(("✅ " if google_ok(SECRETS) else "⚪ ") + "구글 Ads API")
     st.write(("✅ " if meta_ok(SECRETS) else "⚪ ") + "메타 API")
+    st.write(("✅ " if openai_ok(SECRETS) else "⚪ ") + "ChatGPT 광고 API")
     st.write(("✅ " if naver_ok(SECRETS) else "⚪ ") + "네이버 검색광고 API")
     st.write(("✅ " if ga4_ok(SECRETS) else "⚪ ") + "GA4 Data API")
     _store_sheet = ms.storage_kind() == "sheet"
@@ -263,7 +269,7 @@ with tab_raw:
     _ga_api = ga4_ok(SECRETS)
     st.caption(
         ("네이버 " + ("API" if _naver_api else "업로드"))
-        + " · 사람인 업로드 · 구글·메타 API · GA "
+        + " · 사람인 업로드 · 구글·메타·ChatGPT API · GA "
         + ("API" if _ga_api else "업로드")
     )
 
