@@ -10,6 +10,7 @@
 |------|------|
 | 구글 | Google Ads API 실시간 (키워드 레벨) |
 | 메타 | Meta Graph API 실시간 (광고 레벨, 디바이스 모바일 고정) |
+| ChatGPT | OpenAI Advertiser API 실시간 (광고 레벨 일별, 디바이스 PC 고정, 광고비 ×1.1, GA 결합=광고 링크의 utm_content) |
 | 네이버 | 엑셀/CSV 업로드 |
 | 사람인 | 엑셀/CSV 업로드 (캠페인명에 "다우오피스" 포함 행만, 디바이스 PC 고정) |
 | GA 전환수·직원수 | GA4 Data API (다우오피스 / 다우오피스HR 속성) |

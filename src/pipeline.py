@@ -188,8 +188,9 @@ def build_ad_rows(ad_data, media_index, meta_map, stats, since=None, until=None)
             device_raw = fixed_device if isinstance(fixed_device, str) else rec.get("device_raw")
             device = normalize_device(device_raw)
 
-            # GA 결합용 콘텐츠 결정 (기본=광고이름/키워드, 메타는 meta_map)
-            join_content = ad_name
+            # GA 결합용 콘텐츠 결정 (기본=광고이름/키워드, 메타는 meta_map,
+            #  소스가 joinContent 를 주면 그 값 — ChatGPT 는 링크의 utm_content)
+            join_content = to_str(rec.get("joinContent")) or ad_name
             if use_meta:
                 mk = make_meta_key(campaign, ad_group, ad_name)
                 if mk in meta_map["data"]:

@@ -39,7 +39,7 @@ BRAND_OVERRIDE_RULES = [
 ]
 
 # ── 광고 소스 정의 ──────────────────────────────────────────
-#  네이버·사람인은 업로드(kind="upload"), 구글·메타는 API(kind="api").
+#  네이버·사람인은 업로드(kind="upload"), 구글·메타·ChatGPT는 API(kind="api").
 #  device 가 문자열이면 고정값, None 이면 원본 컬럼에서 읽음.
 #  col 의 값은 업로드 파서가 읽을 "열 이름 후보" 목록. (엑셀 헤더가 매번
 #  조금씩 달라서 여러 후보를 두고 첫 매칭을 쓴다.)
@@ -80,6 +80,13 @@ AD_SOURCES = [
         "device": "모바일",       # GAS 설정 그대로 고정
         "useMetaMap": True,
         "costMultiplier": 1.1,   # 부가세 포함 (광고비 × 1.1)
+    },
+    {
+        "label": "ChatGPT",
+        "kind": "api",
+        "device": "PC",          # GA INDEX(chatgpt_ads / cpm)의 디바이스와 맞춰 고정
+        "costMultiplier": 1.1,   # 부가세 포함 (광고비 × 1.1)
+        # GA 결합값은 광고 링크의 utm_content (record["joinContent"])
     },
     {
         "label": "사람인",
