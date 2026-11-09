@@ -191,6 +191,9 @@ def main():
     ap.add_argument("--since")
     ap.add_argument("--until")
     ap.add_argument("--share-dir", default=SHARE_DIR)
+    ap.add_argument("--base", help="기준 워크북을 직접 지정(재작성용). 주면 '오늘 날짜 파일이 "
+                                   "이미 있음' 검사를 건너뛰고 그 파일을 덮어쓴다. "
+                                   "표 안의 같은 주차 중복 검사는 그대로 동작한다.")
     ap.add_argument("--work-dir", default=os.path.join(os.path.dirname(os.path.dirname(
         os.path.abspath(__file__))), "runs"))
     ap.add_argument("--no-upload", action="store_true", help="공유드라이브로 복사하지 않음")
@@ -210,12 +213,19 @@ def main():
         raise SystemExit(f"공유드라이브 경로 없음: {args.share_dir}\n"
                          "→ 구글 드라이브(GoogleDriveFS)가 떠 있는지 확인할 것")
 
-    base, base_tag = latest_workbook(args.share_dir)
-    print(f"기준 워크북: {os.path.basename(base)}")
+    if args.base:
+        base = args.base
+        if not os.path.isfile(base):
+            raise SystemExit(f"--base 파일 없음: {base}")
+        base_tag = None
+        print(f"기준 워크북(직접 지정): {os.path.basename(base)}")
+    else:
+        base, base_tag = latest_workbook(args.share_dir)
+        print(f"기준 워크북: {os.path.basename(base)}")
 
     out_tag = datetime.date.today().strftime("%y%m%d")
     out_name = f"ADEF_주간_다우기술_다우오피스HR_{out_tag}.xlsx"
-    if out_tag == base_tag:
+    if base_tag is not None and out_tag == base_tag:
         raise SystemExit(f"오늘 날짜 파일({out_name})이 이미 공유드라이브에 있음 — 중복 방지로 중단")
 
     os.makedirs(args.work_dir, exist_ok=True)
