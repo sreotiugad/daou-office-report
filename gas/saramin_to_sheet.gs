@@ -11,7 +11,7 @@
  *   1) script.google.com → 새 프로젝트 → 이 파일 내용 붙여넣기
  *   2) 왼쪽 '서비스 +' → Drive API 추가 (xlsx → 시트 변환용)
  *   3) backfill() 한 번 실행 → 권한 허용 (최근 메일 일괄 적재)
- *   4) installTrigger() 한 번 실행 → 매일 11시 자동 실행 등록
+ *   4) installTrigger() 한 번 실행 → 매일 10시 30분 자동 실행 등록
  */
 
 // 매핑 구글시트 ID (앱 secrets 의 MAPPING_SHEET_ID 와 같은 값, 주소 /d/<ID>/edit 의 <ID>)
@@ -32,12 +32,19 @@ function backfill() {
   importMail_(QUERY + ' newer_than:120d');
 }
 
-/** 매일 11시(한국시간) 실행 트리거 등록. 이미 있으면 다시 만들지 않음 */
+/**
+ * 매일 10시 30분쯤(한국시간) 실행 트리거 등록.
+ * 사람인 보고서 메일이 10:00 에 오므로 그 직후에 적재한다.
+ * (Apps Script 시간 트리거는 분 단위 고정이 안 되고 nearMinute 기준 ±15분 안에서 실행된다)
+ * 이미 run 트리거가 있으면 지우고 다시 만든다 — 시간만 바꿔 재실행해도 반영되게.
+ */
 function installTrigger() {
-  const exists = ScriptApp.getProjectTriggers().some(t => t.getHandlerFunction() === 'run');
-  if (!exists) {
-    ScriptApp.newTrigger('run').timeBased().everyDays(1).atHour(11).inTimezone('Asia/Seoul').create();
-  }
+  ScriptApp.getProjectTriggers()
+    .filter(t => t.getHandlerFunction() === 'run')
+    .forEach(t => ScriptApp.deleteTrigger(t));
+  ScriptApp.newTrigger('run').timeBased()
+    .everyDays(1).atHour(10).nearMinute(30)
+    .inTimezone('Asia/Seoul').create();
 }
 
 function importMail_(query) {
